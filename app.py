@@ -271,6 +271,90 @@ def action_card(row):
     </div>
     """
 
+def afrond_actie(actions_df, action_id, today):
+    """Zet een actie op 'Gedaan', logt ze, en maakt automatisch de volgende cadansstap aan indien nodig."""
+    df = actions_df.drop(columns=["_bucket"], errors="ignore").copy().reindex(columns=ACTION_HEADERS)
+    idx = df.index[df["id"].astype(str) == str(action_id)]
+    if len(idx) == 0:
+        return None
+    i = idx[0]
+    df.loc[i, "status"] = "Gedaan"
+    df.loc[i, "afgerond_op"] = today
+    row = df.loc[i].to_dict()
+    volgende = cadans_volgende(row, today)
+    sheets.save_actions(df)
+    if volgende:
+        sheets.append_action(volgende)
+    soort = row.get("kanaal") if row.get("kanaal") in LOG_SOORTEN else "Notitie"
+    sheets.append_log(dict(
+        id=new_id("L"),
+        relatie_type=row.get("relatie_type", ""),
+        relatie_id=row.get("relatie_id", ""),
+        relatie_naam=row.get("relatie_naam", ""),
+        datum=today,
+        soort=soort,
+        notitie=f"Afgerond: {row.get('actie', '')}",
+    ))
+    return volgende
+
+
+def snooze_actie(actions_df, action_id, dagen, today):
+    """Stel een actie uit met x dagen."""
+    df = actions_df.drop(columns=["_bucket"], errors="ignore").copy().reindex(columns=ACTION_HEADERS)
+    idx = df.index[df["id"].astype(str) == str(action_id)]
+    if len(idx) == 0:
+        return
+    i = idx[0]
+    huidig = as_date(df.loc[i, "datum_actie"])
+    basis = huidig if huidig is not None and huidig > today else today
+    df.loc[i, "datum_actie"] = basis + timedelta(days=dagen)
+    sheets.save_actions(df)
+
+
+def agenda_actie_kaart(row, actions_df, today):
+    """Actiekaart met afrond- en uitstelknoppen voor de Agenda."""
+    high = " high" if str(row.get("prioriteit")) == "Hoog" else ""
+    cad = str(row.get("cadans") or "").strip()
+    cad_line = ""
+    if cad:
+        stappen = cadans_stappen(cad)
+        try:
+            stap = int(row.get("cadans_stap") or 0) + 1
+        except (TypeError, ValueError):
+            stap = 1
+        cad_line = f'<br>🔁 <strong>{esc(cad)}</strong> · stap {stap}/{len(stappen)}'
+    st.markdown(
+        f"""
+        <div class="action-card{high}">
+          <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start;">
+            <div>
+              <div class="action-title">{esc(row.get('actie') or 'Actie')}</div>
+              <div style="margin-top:.25rem;">{status_pill(row.get('status','Open'))}</div>
+            </div>
+            <div style="font-weight:850; color:#0f766e; white-space:nowrap;">{date_label(row.get('datum_actie'))}</div>
+          </div>
+          <div class="action-meta">
+            <strong>{esc(row.get('relatie_naam'))}</strong> · {esc(row.get('relatie_type'))} · {esc(row.get('kanaal'))}{cad_line}
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    b1, b2, b3, _ = st.columns([1.1, 1, 1, 3])
+    aid = row["id"]
+    if b1.button("✓ Afronden", key=f"agenda_done_{aid}", use_container_width=True):
+        volgende = afrond_actie(actions_df, aid, today)
+        if volgende:
+            st.toast(f"Volgende stap ingepland: {volgende['actie']} ({date_label(volgende['datum_actie'])})")
+        st.rerun()
+    if b2.button("+3d", key=f"agenda_sn3_{aid}", use_container_width=True):
+        snooze_actie(actions_df, aid, 3, today)
+        st.rerun()
+    if b3.button("+7d", key=f"agenda_sn7_{aid}", use_container_width=True):
+        snooze_actie(actions_df, aid, 7, today)
+        st.rerun()
+
+
 
 def to_excel_bytes(partners, customers, projects, actions, visits, log):
     buf = io.BytesIO()
@@ -470,7 +554,7 @@ st.markdown(
     f"""
     <div class="hero">
       <div>
-        <p class="eyebrow">Solvigo CRM v8</p>
+        <p class="eyebrow">Solvigo CRM v8.1</p>
         <h1>Partners → klanten → projecten → acties</h1>
         <p>Een installateur is een partner/bron. Een jaarlijkse eindklant is een klant. Elke offerte, reiniging of plaatsbezoek is een apart project met automatische opvolging.</p>
       </div>
@@ -484,7 +568,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-tabs = st.tabs(["📊 Dashboard", "✅ Actieblad", "👥 Klanten", "🏗 Projecten", "🤝 Partners", "📍 Plaatsbezoek", "🗂 Data & export"])
+tabs = st.tabs(["📊 Dashboard", "✅ Actieblad", "🗓 Agenda", "👥 Klanten", "🏗 Projecten", "🤝 Partners", "📍 Plaatsbezoek", "🗂 Data & export"])
 
 # ================================================================ DASHBOARD
 with tabs[0]:
@@ -499,7 +583,7 @@ with tabs[0]:
     section("Wat vraagt je aandacht?", "Automatische signalen op basis van acties en pijplijn.")
     nudges = []
     if len(late_actions):
-        nudges.append(("warn", "⏰", f"<b>{len(late_actions)} acties te laat.</b> Werk ze weg in het Actieblad."))
+        nudges.append(("warn", "⏰", f"<b>{len(late_actions)} acties te laat.</b> Werk ze weg in het Actieblad of de Agenda."))
     if len(today_actions):
         nudges.append(("info", "📌", f"<b>{len(today_actions)} acties vandaag.</b> Goed moment om te bellen of op te volgen."))
     if len(rotting_rows):
@@ -611,8 +695,92 @@ with tabs[1]:
         st.success("Acties opgeslagen." + (f" {len(extra)} volgende cadansstap(pen) aangemaakt." if extra else ""))
         st.rerun()
 
-# ================================================================ KLANTEN
+# ================================================================ AGENDA
 with tabs[2]:
+    section("Agenda", "Je opvolging op een tijdlijn. Vink acties af of stel ze snel uit.")
+
+    with st.expander("🔁 Opvolgreeks/cadans starten", expanded=len(open_actions) == 0):
+        st.caption("Kies een klant, project of partner. De app plant stap 1 in. Wanneer je een stap afrondt, verschijnt automatisch de volgende stap.")
+        rels = relation_options(partners, customers, projects)
+        if len(rels) <= 1:
+            st.info("Maak eerst een klant, project of partner aan.")
+        else:
+            with st.form("start_cadans", clear_on_submit=True):
+                rel_index = st.selectbox(
+                    "Voor wie?",
+                    list(range(len(rels))),
+                    format_func=lambda i: f"{rels[i][0] or 'Geen'} — {rels[i][2]}",
+                    index=1 if len(rels) > 1 else 0,
+                )
+                c1, c2 = st.columns([2, 1])
+                cadans = c1.selectbox("Opvolgreeks", cadans_namen())
+                startdatum = c2.date_input("Startdatum", value=today)
+                stappen = cadans_stappen(cadans)
+                st.markdown(
+                    "<div class='caption2'>Reeks: " +
+                    " → ".join(f"{s['label']} (+{s['wacht']}d)" for s in stappen) +
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+                start = st.form_submit_button("Reeks starten", type="primary")
+            if start:
+                rel_type, rel_id, rel_name = rels[rel_index]
+                if not rel_id:
+                    st.warning("Kies een echte relatie om een cadans te starten.")
+                else:
+                    eerste = cadans_actie_dict(rel_type, rel_id, rel_name, cadans, 0, startdatum, today)
+                    sheets.append_action(eerste)
+                    st.success(f"Reeks '{cadans}' gestart voor {rel_name}. Eerste stap: {eerste['actie']} op {date_label(eerste['datum_actie'])}.")
+                    st.rerun()
+
+    section("Komende 14 dagen")
+    per_dag = {}
+    if len(open_actions):
+        for _, r in open_actions.iterrows():
+            d = as_date(r.get("datum_actie"))
+            if d is not None:
+                per_dag[d] = per_dag.get(d, 0) + 1
+    weekdagen = ["ma", "di", "wo", "do", "vr", "za", "zo"]
+    cells = ""
+    late_total = sum(v for k, v in per_dag.items() if k < today)
+    for n in range(14):
+        d = today + timedelta(days=n)
+        cnt = per_dag.get(d, 0)
+        bg = "#0f766e" if cnt else "#ffffff"
+        fg = "#ffffff" if cnt else "#94a3b8"
+        ring = "border:2px solid #b42318;" if (n == 0 and late_total) else "border:1px solid var(--line);"
+        badge = f'<div style="font-size:1.35rem;font-weight:850;color:{fg};">{cnt or "·"}</div>'
+        latebadge = f'<div style="font-size:.7rem;color:#b42318;font-weight:850;">{late_total} te laat</div>' if (n == 0 and late_total) else '<div style="font-size:.7rem;">&nbsp;</div>'
+        cells += (
+            f'<div style="min-width:74px;background:{bg};{ring}border-radius:14px;'
+            f'padding:.5rem;text-align:center;box-shadow:0 6px 16px rgba(15,34,31,.05);">'
+            f'<div style="font-size:.72rem;color:{fg};text-transform:uppercase;font-weight:800;">{weekdagen[d.weekday()]}</div>'
+            f'<div style="font-size:.8rem;color:{fg};font-weight:700;">{d.strftime("%d/%m")}</div>'
+            f'{badge}{latebadge}</div>'
+        )
+    st.markdown(f'<div style="display:flex;gap:.5rem;overflow-x:auto;padding:.3rem 0 .8rem 0;">{cells}</div>', unsafe_allow_html=True)
+
+    for titel, data in [
+        ("⚠ Te laat", late_actions),
+        ("Vandaag", today_actions),
+        ("Deze week", week_actions),
+    ]:
+        section(f"{titel} ({len(data)})")
+        if len(data):
+            for _, r in data.iterrows():
+                agenda_actie_kaart(r, actions, today)
+        else:
+            st.markdown('<div class="success-card"><strong>Niets hier.</strong></div>', unsafe_allow_html=True)
+
+    later = actions[actions["_bucket"] == "Later"].sort_values("datum_actie") if len(actions) else actions
+    if len(later):
+        with st.expander(f"Later gepland ({len(later)})"):
+            for _, r in later.iterrows():
+                agenda_actie_kaart(r, actions, today)
+
+
+# ================================================================ KLANTEN
+with tabs[3]:
     section("Klanten", "Eindklanten waar je voor werkt. Een jaarlijkse klant blijft hier staan; elk jaar maak je een nieuw project.")
 
     with st.expander("➕ Nieuwe klant", expanded=len(customers) == 0):
@@ -752,7 +920,7 @@ with tabs[2]:
         st.info("Nog geen klanten.")
 
 # ================================================================ PROJECTEN
-with tabs[3]:
+with tabs[4]:
     section("Projecten", "Concrete offertes, plaatsbezoeken of reinigingen. Status wijzigen maakt automatisch de juiste volgende actie.")
     section("Pipeline")
     st.markdown(project_board_html(projects, prijs, today), unsafe_allow_html=True)
@@ -919,7 +1087,7 @@ with tabs[3]:
         st.info("Nog geen projecten.")
 
 # ================================================================ PARTNERS
-with tabs[4]:
+with tabs[5]:
     section("Partners / installateurs", "Installateurs en O&M-partijen zijn bronnen van projecten. Ze zijn geen eindklant tenzij ze zelf een reiniging afnemen.")
 
     with st.expander("➕ Nieuwe partner", expanded=len(partners) == 0):
@@ -1030,7 +1198,7 @@ with tabs[4]:
         st.info("Nog geen partners.")
 
 # ================================================================ PLAATSBEZOEK
-with tabs[5]:
+with tabs[6]:
     section("Plaatsbezoek", "Maak een verslag per project. Foto's bewaar je als Google Drive-links.")
     st.markdown('<div class="soft-card"><strong>Foto’s</strong><br>Upload foto’s best naar Google Drive en plak de deel-links in het verslag.</div>', unsafe_allow_html=True)
 
@@ -1098,7 +1266,7 @@ with tabs[5]:
         st.info("Nog geen plaatsbezoekverslagen.")
 
 # ================================================================ DATA & EXPORT
-with tabs[6]:
+with tabs[7]:
     section("Data & export", "Exporteer alles naar Excel en migreer oude leads/projectklanten indien nodig.")
     st.download_button(
         "⬇ Exporteer volledige CRM naar Excel",

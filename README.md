@@ -1,4 +1,4 @@
-# Solvigo CRM v8
+# Solvigo CRM v8.1
 
 Professionele Streamlit CRM voor Solvigo met aparte tabbladen voor:
 
@@ -8,6 +8,10 @@ Professionele Streamlit CRM voor Solvigo met aparte tabbladen voor:
 - Acties
 - Plaatsbezoeken
 - Logboek
+
+## v8.1 update
+
+Het tabblad **Agenda** is teruggezet. Daar zie je acties op datum, kan je acties afronden, +3 dagen of +7 dagen uitstellen en opvolgreeksen/cadansen starten.
 
 ## Belangrijkste wijziging in v8
 

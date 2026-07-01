@@ -1,4 +1,4 @@
-# Handleiding Solvigo CRM v8
+# Handleiding Solvigo CRM v8.1
 
 ## 1. Wat is het verschil tussen Partner, Klant en Project?
 
@@ -97,3 +97,8 @@ Onder **Data & export** staan twee nuttige knoppen:
 
 2. **Oude Leads splitsen naar Partners + Klanten + Projecten**  
    Migreert oude leadtrackerdata naar de nieuwe CRM-structuur.
+
+## v8.1 update
+
+Het tabblad **Agenda** is teruggezet. Daar zie je acties op datum, kan je acties afronden, +3 dagen of +7 dagen uitstellen en opvolgreeksen/cadansen starten.
+
