@@ -1,0 +1,12 @@
+Fix voor TypeError bij datumvelden
+
+Aangepast:
+- core/logic.py: veilige as_date() helper toegevoegd.
+- core/logic.py: project_rotting(), action_bucket(), opvolg_status(), dagen_sinds() werken nu met date, datetime, pandas Timestamp, NaT en tekst-datums.
+- app.py: datumvergelijkingen gebruiken nu as_date().
+- core/sheets.py: datums worden veilig opgeslagen naar Google Sheets.
+
+Vervang in GitHub minstens:
+- app.py
+- core/logic.py
+- core/sheets.py

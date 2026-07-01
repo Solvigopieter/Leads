@@ -32,6 +32,7 @@ from core.config import (
 )
 from core.logic import (
     action_bucket,
+    as_date,
     cadans_actie_dict,
     cadans_namen,
     cadans_stappen,
@@ -185,7 +186,8 @@ def esc(value):
 
 
 def date_label(value):
-    if isinstance(value, date):
+    value = as_date(value)
+    if value is not None:
         return value.strftime("%d/%m/%Y")
     return "Geen datum"
 
@@ -286,8 +288,8 @@ def snooze_actie(actions_df, action_id, dagen, today):
     if len(idx) == 0:
         return
     i = idx[0]
-    huidig = df.loc[i, "datum_actie"]
-    basis = huidig if isinstance(huidig, date) and huidig > today else today
+    huidig = as_date(df.loc[i, "datum_actie"])
+    basis = huidig if huidig is not None and huidig > today else today
     df.loc[i, "datum_actie"] = basis + timedelta(days=dagen)
     sheets.save_actions(df)
 
@@ -344,7 +346,8 @@ def project_action_state(pid, actions, today):
                  (actions["relatie_id"] == pid) & (actions["status"] == "Open")]
     if not len(op):
         return ("none", None)
-    ds = [x for x in op["datum_actie"].tolist() if isinstance(x, date)]
+    ds = [as_date(x) for x in op["datum_actie"].tolist()]
+    ds = [x for x in ds if x is not None]
     if not ds:
         return ("planned", None)
     d = min(ds)
@@ -758,7 +761,7 @@ with tabs[1]:
     if csave.button("💾 Acties opslaan", type="primary", use_container_width=True):
         edited_actions = edited_actions.copy()
         edited_actions["afgerond_op"] = edited_actions.apply(
-            lambda r: today if r.get("status") == "Gedaan" and not isinstance(r.get("afgerond_op"), date) else r.get("afgerond_op"), axis=1
+            lambda r: today if r.get("status") == "Gedaan" and as_date(r.get("afgerond_op")) is None else as_date(r.get("afgerond_op")), axis=1
         )
         save_filtered_table(actions, edited_actions, "id", sheets.save_actions, drop_cols=["_bucket"])
         st.success("Acties opgeslagen.")
@@ -804,8 +807,8 @@ with tabs[2]:
     if len(open_actions):
         per_dag = {}
         for _, r in open_actions.iterrows():
-            d = r.get("datum_actie")
-            if isinstance(d, date):
+            d = as_date(r.get("datum_actie"))
+            if d is not None:
                 per_dag[d] = per_dag.get(d, 0) + 1
     else:
         per_dag = {}
@@ -955,7 +958,7 @@ with tabs[3]:
                 status = c1.selectbox("Status", PROJECT_STATUSES, index=PROJECT_STATUSES.index(row["status"]) if row["status"] in PROJECT_STATUSES else 0)
                 waarde = c2.number_input("Verwachte waarde (€)", min_value=0.0, step=100.0, value=float(row["verwachte_waarde"] or 0), key="edit_project_value")
                 actie = c1.text_input("Volgende actie", row["volgende_actie"])
-                dval = row["datum_actie"] if isinstance(row["datum_actie"], date) else today + timedelta(days=7)
+                dval = as_date(row["datum_actie"]) or today + timedelta(days=7)
                 datum_actie = c2.date_input("Datum actie", value=dval, key="edit_project_date")
                 notities = st.text_area("Notities", row["notities"])
                 ok = st.form_submit_button("Project opslaan", type="primary")
@@ -993,7 +996,7 @@ with tabs[3]:
             full = projects.copy()
             idx = full.index[full["id"] == selected][0]
             full.loc[idx, "laatste_contact"] = today
-            if not isinstance(row["eerste_contact"], date):
+            if as_date(row["eerste_contact"]) is None:
                 full.loc[idx, "eerste_contact"] = today
             if next_action.strip():
                 full.loc[idx, "volgende_actie"] = next_action
@@ -1126,7 +1129,7 @@ with tabs[4]:
             full = partners.copy()
             idx = full.index[full["id"] == selected][0]
             full.loc[idx, "laatste_contact"] = today
-            if not isinstance(row["eerste_contact"], date):
+            if as_date(row["eerste_contact"]) is None:
                 full.loc[idx, "eerste_contact"] = today
             if next_action.strip():
                 full.loc[idx, "volgende_actie"] = next_action

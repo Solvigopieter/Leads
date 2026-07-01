@@ -1,6 +1,8 @@
 """Business-logica voor partners, projecten, acties en bezoeken."""
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+
+import pandas as pd
 
 from .config import (CADANS, PARTNER_AFGEHANDELD, PROJECT_AFGEHANDELD,
                     ROTTING_DAYS, ROTTING_DEFAULT, STAGE_PROBABILITY)
@@ -52,16 +54,43 @@ def weighted_value(row, prijs_per_paneel):
     return project_value(row, prijs_per_paneel) * stage_kans(row.get("status"))
 
 
+def as_date(value):
+    """Zet Google Sheets/Streamlit/pandas datums veilig om naar datetime.date.
+
+    Nodig omdat pandas Timestamp en NaT technisch ook als date/datetime kunnen tellen,
+    maar vergelijken/aftrekken met een gewone date geeft TypeError.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        ts = pd.to_datetime(value, errors="coerce")
+        if pd.isna(ts):
+            return None
+        return ts.date()
+    except Exception:
+        return None
+
+
 def dagen_sinds(d, today=None):
-    today = today or date.today()
-    if not isinstance(d, date):
+    today = as_date(today) or date.today()
+    d = as_date(d)
+    if d is None:
         return None
     return (today - d).days
 
 
 def project_rotting(row, today=None):
     """Geeft (is_rot, dagen_stil, drempel), o.b.v. 'laatste_contact'."""
-    today = today or date.today()
+    today = as_date(today) or date.today()
     drempel = ROTTING_DAYS.get(str(row.get("status")), ROTTING_DEFAULT)
     if str(row.get("status")) in PROJECT_AFGEHANDELD:
         return (False, None, drempel)
@@ -72,10 +101,11 @@ def project_rotting(row, today=None):
 
 
 def opvolg_status(status, datum_actie, afgehandeld, today=None):
-    today = today or date.today()
+    today = as_date(today) or date.today()
+    datum_actie = as_date(datum_actie)
     if status in afgehandeld:
         return "—"
-    if not isinstance(datum_actie, date):
+    if datum_actie is None:
         return "Geen datum"
     if datum_actie < today:
         return "Te laat"
@@ -87,11 +117,11 @@ def opvolg_status(status, datum_actie, afgehandeld, today=None):
 
 
 def action_bucket(row, today=None):
-    today = today or date.today()
+    today = as_date(today) or date.today()
     if row.get("status") != "Open":
         return "Afgehandeld"
-    d = row.get("datum_actie")
-    if not isinstance(d, date):
+    d = as_date(row.get("datum_actie"))
+    if d is None:
         return "Geen datum"
     if d < today:
         return "Te laat"
@@ -122,7 +152,8 @@ def cadans_actie_dict(relatie_type, relatie_id, relatie_naam, cadans, stap_index
                       basisdatum, today=None):
     """Bouwt de actie-dict voor een cadansstap. basisdatum = datum waarop de vorige
     stap is afgerond (of de startdatum voor stap 0)."""
-    today = today or date.today()
+    today = as_date(today) or date.today()
+    basisdatum = as_date(basisdatum) or today
     stappen = cadans_stappen(cadans)
     if stap_index >= len(stappen):
         return None

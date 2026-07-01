@@ -1,10 +1,12 @@
 """Google Sheets backend (gspread + google-auth)."""
-from datetime import date
+from datetime import date, datetime
 
 import gspread
 import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
+
+from .logic import as_date
 
 from .config import (
     ACTION_HEADERS,
@@ -57,8 +59,9 @@ def _optional_ws(name):
 
 
 def _cell(v):
-    if isinstance(v, date):
-        return v.isoformat()
+    d = as_date(v)
+    if d is not None:
+        return d.isoformat()
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return ""
     try:
