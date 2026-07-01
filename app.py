@@ -16,6 +16,7 @@ from core.config import (
     CUSTOMER_HEADERS,
     CUSTOMER_STATUSES,
     CUSTOMER_TYPES,
+    DATE_COLS,
     KANBAN_STAGES,
     LABELS,
     LEGACY_PARTNER_TYPES,
@@ -32,6 +33,10 @@ from core.config import (
     VISIT_HEADERS,
     VISIT_TOEGANG,
     VISIT_VERVUILING,
+    WS_ACTIONS,
+    WS_CUSTOMERS,
+    WS_PARTNERS,
+    WS_PROJECTS,
 )
 from core.logic import (
     action_bucket,
@@ -129,6 +134,20 @@ def sheet_date(value):
     """Bewaar datums als tekst voor Google Sheets/pandas, zodat afronden en uitstellen niet crasht."""
     d = as_date(value)
     return d.isoformat() if d else ""
+
+
+def editor_df(df, sheet_name):
+    """Maak een dataframe veilig voor st.data_editor.
+
+    Streamlit DateColumn crasht als datumkolommen als tekst/object uit Google Sheets komen.
+    Daarom zetten we enkel voor de editor de datumkolommen om naar pandas datetime.
+    Bij opslaan zet core/sheets.py alles opnieuw stabiel naar YYYY-MM-DD.
+    """
+    out = df.copy()
+    for col in DATE_COLS.get(sheet_name, []):
+        if col in out.columns:
+            out[col] = pd.to_datetime(out[col], errors="coerce")
+    return out
 
 
 def status_pill(status):
@@ -671,7 +690,7 @@ with tabs[1]:
     view = view.sort_values(["datum_actie", "prioriteit"], ascending=[True, True]) if len(view) else view
 
     edited_actions = st.data_editor(
-        view.drop(columns=["_bucket"], errors="ignore"),
+        editor_df(view.drop(columns=["_bucket"], errors="ignore"), WS_ACTIONS),
         hide_index=True,
         use_container_width=True,
         num_rows="dynamic",
@@ -838,7 +857,7 @@ with tabs[3]:
         view = view[view["terugkerend"].isin(f_rec)]
     auto_customer_table = st.checkbox("Bij klantstatus automatisch volgende actie + actieblad aanpassen", value=True)
     edited_customers = st.data_editor(
-        view,
+        editor_df(view, WS_CUSTOMERS),
         hide_index=True,
         use_container_width=True,
         num_rows="dynamic",
@@ -984,7 +1003,7 @@ with tabs[4]:
         view = view[view["partner_bedrijf"].str.lower().str.contains(f_partner.lower(), na=False)]
 
     auto_project_table = st.checkbox("Bij projectstatus automatisch volgende actie + actieblad aanpassen", value=True)
-    edited_projects = st.data_editor(view, hide_index=True, use_container_width=True, num_rows="dynamic", column_config=project_col_config(partners, customers), key="projects_editor")
+    edited_projects = st.data_editor(editor_df(view, WS_PROJECTS), hide_index=True, use_container_width=True, num_rows="dynamic", column_config=project_col_config(partners, customers), key="projects_editor")
     if st.button("💾 Projecten opslaan", type="primary", use_container_width=True):
         edited_projects = edited_projects.reindex(columns=PROJECT_HEADERS)
         edited_projects["id"] = edited_projects["id"].apply(lambda x: x if str(x).strip() else new_id("P"))
@@ -1128,7 +1147,7 @@ with tabs[5]:
     if f_status:
         view = view[view["status"].isin(f_status)]
     auto_partner_table = st.checkbox("Bij partnerstatus automatisch volgende actie + actieblad aanpassen", value=True)
-    edited_partners = st.data_editor(view, hide_index=True, use_container_width=True, num_rows="dynamic", column_config=partner_col_config(), key="partners_editor")
+    edited_partners = st.data_editor(editor_df(view, WS_PARTNERS), hide_index=True, use_container_width=True, num_rows="dynamic", column_config=partner_col_config(), key="partners_editor")
     if st.button("💾 Partners opslaan", type="primary", use_container_width=True):
         edited_partners = edited_partners.reindex(columns=PARTNER_HEADERS)
         edited_partners["id"] = edited_partners["id"].apply(lambda x: x if str(x).strip() else new_id("R"))

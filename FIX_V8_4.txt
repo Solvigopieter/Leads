@@ -1,0 +1,8 @@
+Fix v8.4
+========
+- Opgelost: StreamlitAPIException bij st.data_editor door datumkolommen die als tekst/object uit Google Sheets kwamen.
+- Voor Acties, Klanten, Projecten en Partners worden datumkolommen nu enkel voor de editor naar pandas datetime omgezet.
+- Opslaan naar Google Sheets blijft in stabiel YYYY-MM-DD formaat.
+
+Vervang minimaal: app.py
+Aanbevolen: volledige zip uploaden/vervangen.
