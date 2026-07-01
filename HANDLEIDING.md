@@ -1,164 +1,99 @@
-# Handleiding — Solvigo CRM
+# Handleiding Solvigo CRM v8
 
-## Dagelijks gebruik
+## 1. Wat is het verschil tussen Partner, Klant en Project?
 
-Start elke werkdag in **Actieblad**.
+**Partner**
+: Een installateur, O&M-bedrijf of andere partij die jou werk kan aanbrengen.
 
-De belangrijkste blokken zijn:
+**Klant**
+: Het bedrijf of de persoon waarvoor je effectief werkt of wil werken.
 
-1. **Te laat**: eerst oplossen.
-2. **Vandaag**: daarna afwerken.
-3. **Deze week**: voorbereiden en opvolgen.
+**Project**
+: Een concrete opdracht, offerte, plaatsbezoek of reiniging bij een klant.
 
-Na elk telefoontje of mailtje log je een contactmoment en zet je meteen een volgende actie met datum. Zo blijft je opvolging automatisch georganiseerd.
+Voorbeeld:
 
-## Partners versus projecten
+```text
+Partner: Kempen Solar
+Klant: Janssens Agro
+Project: Reiniging Janssens Agro 2026
+```
 
-### Partners
+Als Kempen Solar zegt: “Bel die klant eens”, maak je dus:
 
-Partners zijn installateurs, O&M-partijen of andere bedrijven die jou projecten kunnen aanbrengen.
+1. Kempen Solar als partner.
+2. Janssens Agro als klant.
+3. Reiniging Janssens Agro 2026 als project.
+4. Automatische actie: eindklant contacteren.
 
-Gebruik Partners voor:
+## 2. Jaarlijkse klant
 
-- installateurs die je wil benaderen;
-- bedrijven die regelmatig klanten kunnen doorverwijzen;
-- O&M-partijen met grote portefeuilles;
-- samenwerkingsgesprekken.
+Een jaarlijkse klant blijft in **Klanten** staan.
 
-### Projecten
+Vul bijvoorbeeld in:
 
-Projecten zijn concrete opdrachten of eindklanten.
+```text
+Klant: Janssens Agro
+Terugkerend: Ja
+Frequentie: Jaarlijks
+Status: Terugkerende klant
+```
 
-Gebruik Projecten voor:
+Elk jaar maak je een nieuw project:
 
-- één bedrijf met zonnepanelen die gereinigd moeten worden;
-- een klant die door een installateur werd doorgestuurd;
-- een plaatsbezoek;
-- een offerte en opvolging.
+```text
+Reiniging Janssens Agro 2026
+Reiniging Janssens Agro 2027
+Reiniging Janssens Agro 2028
+```
 
-## Doorverwijzing door installateur
+Wanneer je een project op **Uitgevoerd** zet, plant de app automatisch een jaarlijkse opvolging op klantniveau.
 
-Als een installateur zegt “neem contact op met die persoon”:
+## 3. Projectstatussen en automatische acties
 
-1. Ga naar **Partners**.
-2. Kies de installateur.
-3. Open **Project aanmaken uit doorverwijzing**.
-4. Vul de klantgegevens in.
-5. Klik op **Doorverwezen project toevoegen**.
+| Projectstatus | Automatische volgende actie |
+|---|---|
+| Nieuwe aanvraag | Eindklant contacteren |
+| Te contacteren | Eindklant contacteren |
+| Gecontacteerd | Info opvragen of plaatsbezoek voorstellen |
+| Info gevraagd | Ontbrekende info opvragen |
+| Plaatsbezoek plannen | Plaatsbezoek inplannen |
+| Plaatsbezoek gepland | Plaatsbezoek uitvoeren |
+| Plaatsbezoek uitgevoerd | Plaatsbezoekverslag maken |
+| Verslag maken | Plaatsbezoekverslag maken |
+| Verslag klaar | Offerte opmaken |
+| Offerte maken | Offerte opmaken en versturen |
+| Offerte verstuurd | Offerte opvolgen |
+| Gewonnen | Uitvoering/reiniging inplannen |
+| Uitvoering gepland | Uitvoering voorbereiden |
+| Uitgevoerd | Jaarlijkse opvolging plannen |
+| Verloren / No-go | Geen nieuwe actie |
 
-De app maakt dan automatisch:
-
-- een project voor de klant;
-- een actie om de klant te contacteren;
-- een logitem bij de partner.
-
-## Plaatsbezoekverslag
+## 4. Plaatsbezoek met foto's
 
 Ga naar **Plaatsbezoek** en maak een verslag bij een project.
 
-Vul onder andere in:
+Foto's worden niet als bestand in Google Sheets opgeslagen. Upload ze naar Google Drive en plak de deel-links in het veld **Foto-links**.
 
-- datum;
-- contact ter plaatse;
-- adres;
-- aantal panelen;
-- daktype;
-- vervuiling;
-- toegang;
-- waterpunt;
-- veiligheid;
-- verslagtekst;
-- foto-links;
-- volgende actie.
+Na opslaan kan de app de projectstatus automatisch op **Verslag klaar** zetten en een actie **Offerte opmaken** plannen.
 
-Na opslaan maakt de app automatisch een vervolgactie, bijvoorbeeld **Offerte maken**.
+## 5. Actieblad
 
-## Foto's
+Het actieblad is je dagelijkse werklijst. Daar zie je:
 
-De app bewaart foto’s als links. Upload foto’s naar Google Drive en plak de links bij **Foto-links**. Dat is betrouwbaarder dan foto’s in Google Sheets proberen te bewaren.
+- te laat
+- vandaag
+- deze week
+- later
 
-## Excel-export
+Elke statuswijziging kan automatisch een actie aanmaken of bijwerken.
 
-Ga naar **Data & export** en klik op **Exporteer volledige CRM naar Excel**. De export bevat aparte werkbladen voor Partners, Projecten, Acties, Plaatsbezoeken en Log.
+## 6. Oude data
 
----
+Onder **Data & export** staan twee nuttige knoppen:
 
-## Nieuw: Agenda + automatische opvolgreeksen (cadans)
+1. **Projectklanten aanmaken / koppelen**  
+   Maakt klantfiches uit bestaande projecten zonder klant-ID.
 
-### Cadans — je opvolging plant zichzelf in
-Een *cadans* is een vaste opvolgvolgorde. Je start ze één keer; daarna verschijnt
-telkens de volgende stap automatisch zodra je de vorige afvinkt.
-
-Ingebouwde reeksen (aan te passen in `core/config.py` onder `CADANS`):
-- **Standaard outreach:** 1e mail → opvolgmail (+4d) → bellen (+4d) →
-  plaatsbezoek (+7d) → offerte (+5d) → offerte opvolgen (+7d) → laatste follow-up (+10d)
-- **Bestaande klant heractiveren**
-- **Snel (warme lead)**
-
-De `+Xd` is het aantal dagen ná het afvinken van de vorige stap.
-
-### Zo gebruik je het
-1. Tab **🗓 Agenda** → **🔁 Opvolgreeks starten** → kies partner/project + reeks +
-   startdatum → *Reeks starten*. Stap 1 staat nu in je agenda.
-2. Werk je acties af met de **✓ Afronden**-knop. Dan gebeurt automatisch:
-   - de actie gaat op *Gedaan* en komt in het Log;
-   - de **volgende stap** wordt ingepland op de juiste datum.
-3. Nog niet toe aan een actie? Gebruik **+3d** of **+7d** om ze uit te stellen.
-
-### Agenda-tab
-- **Komende 14 dagen:** strip met per dag het aantal geplande acties; dag 0 toont
-  ook hoeveel er te laat zijn.
-- **Te laat / Vandaag / Deze week:** je werklijst met afrond- en uitstelknoppen.
-- **Later gepland:** klapt open voor alles verderop.
-
-### Belangrijk
-- De cadans loopt automatisch door zolang je afvinkt via **✓ Afronden**. Zet je een
-  actie handmatig op *Gedaan* in het Actieblad-tabblad, dan wordt de volgende stap
-  **niet** aangemaakt (bewust, om dubbels te vermijden). Gebruik dus de Afronden-knop.
-- Cadans-info staat in twee nieuwe kolommen op het Acties-blad: `cadans` en
-  `cadans_stap`. Niet handmatig aanpassen.
-
----
-
-## Nieuw in v6: Pipedrive-look pijplijnbord
-
-Het pijplijnbord in de tab Projecten toont nu rijke kaartjes (voortgangsbalkje,
-naam, waarde, statusstip voor de volgende actie, WON-badge, 🔴 bij verschraling),
-visueel in de stijl van Pipedrive. Slepen kan via de uitklap "✋ Sleepmodus".
-
-## Nieuw in v5: Kanban, deal rotting, nudges en gewogen pijplijn
-
-Geïnspireerd op wat de beste sales-CRM's (Pipedrive, HubSpot, OnePageCRM) doen.
-
-### 🧲 Kanban-pijplijn (slepen)
-Bovenaan de tab **🏗 Projecten** staat nu een sleepbaar bord. Elke kolom is een
-fase; sleep een projectkaart naar een andere kolom en de status wordt meteen
-opgeslagen. Elke kolomkop toont het aantal projecten en de totale waarde.
-Kaarten met **🔴** zijn *verschraald* (te lang geen contact).
-
-### 🔴 Deal rotting
-Een actief project dat te lang geen contact had, wordt gemarkeerd als
-verschraald. De drempel verschilt per fase (in te stellen in `core/config.py`
-onder `ROTTING_DAYS`, standaard 5–14 dagen). Zo bloedt geen warm project
-stilletjes dood. Rotting kijkt naar de kolom **laatste_contact**.
-
-### 🎯 Nudges op het dashboard
-Een automatisch signalenpaneel (zoals Pipedrive's sales-assistent), volledig
-regelgebaseerd — geen AI nodig:
-- acties die te laat zijn;
-- projecten die verschralen;
-- **actieve projecten zonder geplande volgende actie** (het grootste lek);
-- acties van vandaag.
-
-### ⚖ Gewogen pijplijn
-Elke fase heeft een winstkans (in `core/config.py` onder `STAGE_PROBABILITY`,
-bv. Offerte verstuurd = 60%). Het dashboard toont naast de brutopijplijnwaarde
-nu ook de **gewogen** waarde (waarde × kans) — een realistischer beeld voor
-planning.
-
-### Look & feel
-De interface kreeg een strakkere, professionelere opfrissing (rustiger
-achtergrond, vlakkere tegels, duidelijke kolomkoppen).
-
-> Nieuw pakket: `streamlit-sortables` (staat in requirements.txt) — nodig voor
-> het sleepbord. Verschijnt automatisch na de volgende deploy.
+2. **Oude Leads splitsen naar Partners + Klanten + Projecten**  
+   Migreert oude leadtrackerdata naar de nieuwe CRM-structuur.

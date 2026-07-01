@@ -1,15 +1,13 @@
 """Google Sheets backend (gspread + google-auth)."""
-from datetime import date, datetime
-
-import gspread
 import pandas as pd
 import streamlit as st
+import gspread
 from google.oauth2.service_account import Credentials
 
 from .logic import as_date
-
 from .config import (
     ACTION_HEADERS,
+    CUSTOMER_HEADERS,
     DATE_COLS,
     FLOAT_COLS,
     INT_COLS,
@@ -19,6 +17,7 @@ from .config import (
     PROJECT_HEADERS,
     VISIT_HEADERS,
     WS_ACTIONS,
+    WS_CUSTOMERS,
     WS_LEGACY_LEADS,
     WS_LOG,
     WS_PARTNERS,
@@ -44,10 +43,21 @@ def _ensure_ws(name, headers):
         ws = sh.add_worksheet(title=name, rows=1000, cols=max(len(headers), 12))
         ws.update(values=[headers], range_name="A1")
         return ws
+
     current = ws.row_values(1)
+    # Veilig migreren: bestaande kolommen behouden en ontbrekende nieuwe kolommen achteraan toevoegen.
     if current != headers:
-        # Geen data verwijderen; enkel juiste headers zetten. Bestaande kolommen blijven zichtbaar in Sheets.
-        ws.update(values=[headers], range_name="A1")
+        merged_headers = list(current) if current else []
+        for h in headers:
+            if h not in merged_headers:
+                merged_headers.append(h)
+        if not merged_headers:
+            merged_headers = headers
+        # Als de volgorde hetzelfde aantal oude kolommen heeft, herschrijven we naar de gewenste headers.
+        # Voor Projecten staan nieuwe kolommen achteraan, zodat data niet verschuift.
+        if set(current).issubset(set(headers)):
+            merged_headers = headers
+        ws.update(values=[merged_headers], range_name="A1")
     return ws
 
 
@@ -62,7 +72,7 @@ def _cell(v):
     d = as_date(v)
     if d is not None:
         return d.isoformat()
-    if v is None or (isinstance(v, float) and pd.isna(v)):
+    if v is None:
         return ""
     try:
         if pd.isna(v):
@@ -76,6 +86,7 @@ def _to_df(records, headers, sheet_name):
     df = pd.DataFrame(records)
     if df.empty:
         df = pd.DataFrame(columns=headers)
+    # Bestaande/extra kolommen negeren in de app, gewenste kolommen aanvullen.
     df = df.reindex(columns=headers)
     for c in DATE_COLS.get(sheet_name, []):
         df[c] = pd.to_datetime(df[c], errors="coerce").dt.date
@@ -92,7 +103,7 @@ def _to_df(records, headers, sheet_name):
 
 def _load(name, headers):
     ws = _ensure_ws(name, headers)
-    records = ws.get_all_records(expected_headers=headers)
+    records = ws.get_all_records()
     return _to_df(records, headers, name)
 
 
@@ -122,6 +133,21 @@ def save_partners(df):
 def append_partner(row):
     _append(WS_PARTNERS, PARTNER_HEADERS, row)
     load_partners.clear()
+
+
+@st.cache_data(ttl=30)
+def load_customers():
+    return _load(WS_CUSTOMERS, CUSTOMER_HEADERS)
+
+
+def save_customers(df):
+    _save(WS_CUSTOMERS, CUSTOMER_HEADERS, df)
+    load_customers.clear()
+
+
+def append_customer(row):
+    _append(WS_CUSTOMERS, CUSTOMER_HEADERS, row)
+    load_customers.clear()
 
 
 @st.cache_data(ttl=30)
@@ -189,12 +215,13 @@ def load_legacy_leads():
     ws = _optional_ws(WS_LEGACY_LEADS)
     if ws is None:
         return pd.DataFrame(columns=LEGACY_LEAD_HEADERS)
-    records = ws.get_all_records(expected_headers=LEGACY_LEAD_HEADERS)
+    records = ws.get_all_records()
     return _to_df(records, LEGACY_LEAD_HEADERS, WS_LEGACY_LEADS)
 
 
 def clear_all_caches():
     load_partners.clear()
+    load_customers.clear()
     load_projects.clear()
     load_actions.clear()
     load_visits.clear()

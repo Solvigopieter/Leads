@@ -1,0 +1,30 @@
+Solvigo CRM v7 — automatische opvolging
+
+Projectvolgorde
+1. Nieuwe aanvraag          -> Eindklant contacteren (+1 dag)
+2. Te contacteren           -> Eindklant contacteren (+1 dag)
+3. Info gevraagd            -> Ontbrekende info opvragen (+2 dagen)
+4. Plaatsbezoek gepland     -> Plaatsbezoek uitvoeren (+3 dagen)
+5. Verslag maken            -> Plaatsbezoekverslag maken (+1 dag)
+6. Offerte maken            -> Offerte opmaken en versturen (+1 dag)
+7. Offerte verstuurd        -> Offerte opvolgen (+7 dagen)
+8. Gewonnen                 -> Uitvoering/reiniging inplannen (+2 dagen)
+9. Verloren                 -> geen nieuwe actie; open acties worden geannuleerd
+10. No-go                   -> geen nieuwe actie; open acties worden geannuleerd
+
+Partnervolgorde
+1. Nieuw                    -> Partner contacteren (+2 dagen)
+2. Te contacteren           -> Samenwerking voorstellen (+3 dagen)
+3. Gecontacteerd            -> Samenwerking opvolgen (+7 dagen)
+4. Interesse samenwerking   -> Afspraak of proefproject voorstellen (+3 dagen)
+5. Actieve partner          -> Partner check-in / nieuwe projecten vragen (+30 dagen)
+6. Slapend                  -> Partner heractiveren (+30 dagen)
+7. Niet interessant         -> geen nieuwe actie; open acties worden geannuleerd
+
+Wat is nieuw?
+- Als je een projectstatus wijzigt in de projecttabel en opslaat, past de app automatisch volgende_actie en datum_actie aan.
+- Het actieblad wordt mee bijgewerkt: de eerstvolgende open actie wordt aangepast of aangemaakt.
+- In het sleepbord gebeurt hetzelfde wanneer je een project naar een andere fase sleept.
+- In de projectfiche kan je het vinkje 'Volgende actie automatisch aanpassen volgens gekozen status' aanvinken.
+- Voor partners werkt dezelfde logica via de partnertabel.
+- Bij Verloren, No-go of Niet interessant wordt geen nieuwe actie gepland en worden bestaande open acties voor die relatie geannuleerd.

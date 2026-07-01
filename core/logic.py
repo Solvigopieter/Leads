@@ -1,11 +1,21 @@
-"""Business-logica voor partners, projecten, acties en bezoeken."""
+"""Business-logica voor partners, klanten, projecten, acties en bezoeken."""
 import uuid
 from datetime import date, datetime, timedelta
 
 import pandas as pd
 
-from .config import (CADANS, PARTNER_AFGEHANDELD, PROJECT_AFGEHANDELD,
-                    ROTTING_DAYS, ROTTING_DEFAULT, STAGE_PROBABILITY)
+from .config import (
+    CADANS,
+    CUSTOMER_AFGEHANDELD,
+    CUSTOMER_STATUS_NEXT_ACTION,
+    PARTNER_AFGEHANDELD,
+    PARTNER_STATUS_NEXT_ACTION,
+    PROJECT_AFGEHANDELD,
+    PROJECT_STATUS_NEXT_ACTION,
+    ROTTING_DAYS,
+    ROTTING_DEFAULT,
+    STAGE_PROBABILITY,
+)
 
 
 def new_id(prefix=""):
@@ -50,16 +60,11 @@ def stage_kans(status):
 
 
 def weighted_value(row, prijs_per_paneel):
-    """Gewogen dealwaarde = waarde x winstkans van de fase."""
     return project_value(row, prijs_per_paneel) * stage_kans(row.get("status"))
 
 
 def as_date(value):
-    """Zet Google Sheets/Streamlit/pandas datums veilig om naar datetime.date.
-
-    Nodig omdat pandas Timestamp en NaT technisch ook als date/datetime kunnen tellen,
-    maar vergelijken/aftrekken met een gewone date geeft TypeError.
-    """
+    """Zet Google Sheets/Streamlit/pandas datums veilig om naar datetime.date."""
     if value is None or value == "":
         return None
     try:
@@ -136,6 +141,10 @@ def partner_is_active(row):
     return row.get("status") not in PARTNER_AFGEHANDELD
 
 
+def customer_is_active(row):
+    return row.get("status") not in CUSTOMER_AFGEHANDELD
+
+
 def project_is_active(row):
     return row.get("status") not in PROJECT_AFGEHANDELD
 
@@ -148,10 +157,7 @@ def cadans_stappen(naam):
     return CADANS.get(naam, [])
 
 
-def cadans_actie_dict(relatie_type, relatie_id, relatie_naam, cadans, stap_index,
-                      basisdatum, today=None):
-    """Bouwt de actie-dict voor een cadansstap. basisdatum = datum waarop de vorige
-    stap is afgerond (of de startdatum voor stap 0)."""
+def cadans_actie_dict(relatie_type, relatie_id, relatie_naam, cadans, stap_index, basisdatum, today=None):
     today = as_date(today) or date.today()
     basisdatum = as_date(basisdatum) or today
     stappen = cadans_stappen(cadans)
@@ -179,8 +185,7 @@ def cadans_actie_dict(relatie_type, relatie_id, relatie_naam, cadans, stap_index
 
 
 def cadans_volgende(row, today=None):
-    """Geeft de dict voor de volgende cadansstap na het afronden van 'row', of None."""
-    today = today or date.today()
+    today = as_date(today) or date.today()
     cad = str(row.get("cadans") or "").strip()
     if not cad:
         return None
@@ -191,23 +196,54 @@ def cadans_volgende(row, today=None):
     if stap + 1 >= len(cadans_stappen(cad)):
         return None
     return cadans_actie_dict(
-        row.get("relatie_type", ""), row.get("relatie_id", ""), row.get("relatie_naam", ""),
-        cad, stap + 1, today, today)
+        row.get("relatie_type", ""),
+        row.get("relatie_id", ""),
+        row.get("relatie_naam", ""),
+        cad,
+        stap + 1,
+        today,
+        today,
+    )
+
+
+def next_action_for_status(kind, status, basisdatum=None):
+    """Geef automatische volgende actie voor Project, Partner of Klant."""
+    basisdatum = as_date(basisdatum) or date.today()
+    if kind == "Project":
+        mapping = PROJECT_STATUS_NEXT_ACTION
+    elif kind == "Klant":
+        mapping = CUSTOMER_STATUS_NEXT_ACTION
+    else:
+        mapping = PARTNER_STATUS_NEXT_ACTION
+    cfg = mapping.get(str(status), {"actie": "Opvolgen", "dagen": 7, "kanaal": "Telefoon", "prioriteit": "Normaal"})
+    actie = cfg.get("actie", "")
+    try:
+        dagen = int(cfg.get("dagen", 7) or 0)
+    except (TypeError, ValueError):
+        dagen = 7
+    return dict(
+        actie=actie,
+        datum_actie=basisdatum + timedelta(days=dagen),
+        kanaal=cfg.get("kanaal", "Telefoon"),
+        prioriteit=cfg.get("prioriteit", "Normaal"),
+    )
 
 
 def offerte_tekst_project(row, prijs_per_paneel):
     panelen = int(row.get("aantal_panelen") or 0)
     waarde = project_value(row, prijs_per_paneel)
     partner = row.get("partner_bedrijf") or "Geen partner"
+    klant = row.get("klant_bedrijf") or "Geen klant"
     return (
         f"Offerte-info — {row.get('projectnaam', '')}\n"
-        f"Klant: {row.get('klant_bedrijf', '')}\n"
+        f"Klant: {klant}\n"
         f"Contact: {row.get('contactpersoon', '')} ({row.get('email', '')})\n"
         f"Telefoon: {row.get('telefoon', '')}\n"
         f"Adres/regio: {row.get('adres', '')} — {row.get('regio', '')}\n"
         f"Aantal panelen: {panelen}\n"
         f"Bron: {row.get('bron_type', '')}\n"
         f"Partner/installateur: {partner}\n"
+        f"Terugkerend: {row.get('terugkerend', '')} {row.get('frequentie', '')}\n"
         f"Richtprijs: EUR {prijs_per_paneel:.2f}/paneel\n"
         f"Geschatte waarde: EUR {waarde:,.0f}\n"
         f"Notities: {row.get('notities', '')}\n"

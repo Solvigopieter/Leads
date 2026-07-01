@@ -1,37 +1,94 @@
-# Solvigo CRM — partners, projecten, actieblad en plaatsbezoeken
+# Solvigo CRM v8
 
-Streamlit-app voor Solvigo leadopvolging met Google Sheets als backend.
+Professionele Streamlit CRM voor Solvigo met aparte tabbladen voor:
 
-## Nieuwe structuur
+- Partners / installateurs
+- Klanten
+- Projecten / opdrachten
+- Acties
+- Plaatsbezoeken
+- Logboek
 
-De app maakt bewust een onderscheid tussen:
+## Belangrijkste wijziging in v8
 
-- **Partners**: installateurs, O&M-partijen en andere bedrijven die werk kunnen aanbrengen.
-- **Projecten**: concrete reinigingsopdrachten/eindklanten.
-- **Acties**: dagelijkse opvolglijst: wie moet opnieuw gecontacteerd worden en wanneer.
-- **Plaatsbezoeken**: verslag per project, inclusief technische observaties en foto-links.
-- **Log**: historiek van contactmomenten.
+De CRM-structuur volgt nu beter de manier waarop bekende CRM's werken:
 
-Voorbeeld: een installateur zegt “neem contact op met die klant”.
-Dan blijft de installateur in **Partners**, en maak je vanuit de partnerfiche een apart **Project** aan. De app maakt meteen een actie aan om de eindklant te contacteren.
+```text
+Partner / installateur -> brengt werk aan
+Klant -> bedrijf of persoon waarvoor je werkt
+Project -> concrete offerte, reiniging of plaatsbezoek
+Actie -> volgende stap met datum
+Plaatsbezoek -> verslag + foto-links
+```
 
-## Setup
+Een jaarlijkse klant wordt dus geen partner. Die klant blijft in **Klanten** staan. Elk jaar maak je een nieuw **Project** voor die klant.
 
-1. Maak of gebruik een Google Sheet.
-2. Deel de Sheet met het service-account als **Bewerker**.
-3. Deploy op Streamlit Community Cloud met `app.py` als main file.
-4. Zet bij Streamlit Secrets:
+## Professionele projectflow
+
+```text
+Nieuwe aanvraag
+-> Eindklant contacteren
+
+Gecontacteerd
+-> Info opvragen of plaatsbezoek voorstellen
+
+Info gevraagd
+-> Ontbrekende info opvragen
+
+Plaatsbezoek plannen
+-> Plaatsbezoek inplannen
+
+Plaatsbezoek gepland
+-> Plaatsbezoek uitvoeren
+
+Plaatsbezoek uitgevoerd
+-> Plaatsbezoekverslag maken
+
+Verslag klaar
+-> Offerte opmaken
+
+Offerte maken
+-> Offerte opmaken en versturen
+
+Offerte verstuurd
+-> Offerte opvolgen na 7 dagen
+
+Gewonnen
+-> Uitvoering/reiniging inplannen
+
+Uitvoering gepland
+-> Uitvoering voorbereiden
+
+Uitgevoerd
+-> Jaarlijkse opvolging plannen
+
+Verloren / No-go
+-> Geen nieuwe open actie
+```
+
+Als je een status wijzigt en opslaat, past de app automatisch aan:
+
+- volgende actie
+- datum actie
+- actieblad
+- logboek
+
+Bij status **Uitgevoerd** wordt de gekoppelde klant automatisch bijgewerkt. Is het een terugkerende klant, dan plant de app een jaarlijkse opvolging.
+
+## Streamlit Secrets
+
+Gebruik dezelfde secrets als je offerte-app, plus je Sheet-ID:
 
 ```toml
 [sheet]
-id = "JOUW_GOOGLE_SHEET_ID"
+id = "JE_GOOGLE_SHEET_ID"
 
 [gcp_service_account]
 type = "service_account"
 project_id = "..."
 private_key_id = "..."
 private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-client_email = "...@...iam.gserviceaccount.com"
+client_email = "...@....iam.gserviceaccount.com"
 client_id = "..."
 auth_uri = "https://accounts.google.com/o/oauth2/auth"
 token_uri = "https://oauth2.googleapis.com/token"
@@ -39,24 +96,17 @@ auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
 client_x509_cert_url = "..."
 ```
 
-De app maakt automatisch deze tabbladen aan in Google Sheets:
+## Bestanden deployen
+
+Vervang in GitHub minstens:
 
 ```text
-Partners
-Projecten
-Acties
-Plaatsbezoeken
-Log
+app.py
+core/config.py
+core/logic.py
+core/sheets.py
+README.md
+HANDLEIDING.md
 ```
 
-## Foto's bij plaatsbezoek
-
-Google Sheets is niet geschikt als fotomap. De app bewaart daarom foto-links:
-
-1. Upload foto’s naar Google Drive.
-2. Zet delen aan voor wie ze moet bekijken.
-3. Plak de links in het veld **Foto-links** bij het plaatsbezoek.
-
-## Oude leadtracker-data
-
-Had je al een oud tabblad `Leads`? Ga naar **Data & export** en klik op **Oude Leads splitsen naar Partners + Projecten**. Het oude tabblad blijft bestaan als backup.
+Daarna committen en de Streamlit-app rebooten.
