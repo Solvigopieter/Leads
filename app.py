@@ -147,6 +147,36 @@ div[data-testid="stMetricValue"] { font-size: 1.5rem; }
 """
 st.markdown(V5_CSS, unsafe_allow_html=True)
 
+PD_CSS = """
+<style>
+/* Pipedrive-achtig pijplijnbord */
+.pd-board { display:flex; gap:14px; overflow-x:auto; padding:4px 2px 14px; }
+.pd-col { min-width:228px; max-width:250px; flex:0 0 auto; }
+.pd-colhead { padding:2px 4px 9px; }
+.pd-stage { font-weight:850; color:#0b3b35; font-size:.95rem; letter-spacing:-.01em; }
+.pd-sub { color:#64748b; font-size:.78rem; font-weight:800; margin-top:2px; }
+.pd-track { border-top:2px solid #e2e8e6; padding-top:9px; display:flex; flex-direction:column; gap:8px; min-height:60px; }
+.pd-card { background:#fff; border:1px solid #e6ebe9; border-radius:10px; padding:10px 11px;
+           box-shadow:0 1px 2px rgba(15,34,31,.06); transition:box-shadow .15s, transform .15s; }
+.pd-card:hover { box-shadow:0 8px 20px rgba(15,34,31,.13); transform:translateY(-1px); }
+.pd-card.rot { border-left:3px solid #b42318; }
+.pd-segs { display:flex; gap:3px; margin-bottom:8px; }
+.pd-seg { height:4px; border-radius:3px; flex:1; background:#e6ebe9; }
+.pd-seg.on { background:#0f766e; }
+.pd-ttl { font-weight:800; color:#10231f; font-size:.9rem; line-height:1.25; }
+.pd-org { color:#64748b; font-size:.79rem; margin-top:1px; }
+.pd-foot { display:flex; justify-content:space-between; align-items:center; margin-top:9px; }
+.pd-val { font-weight:850; color:#0b3b35; font-size:.85rem; }
+.pd-dot { font-size:.72rem; }
+.pd-dot.red { color:#b42318; } .pd-dot.teal { color:#0f766e; }
+.pd-dot.green { color:#16a34a; } .pd-dot.amber { color:#f59e0b; }
+.pd-won { display:inline-block; background:#16a34a; color:#fff; font-size:.6rem; font-weight:850;
+          padding:1px 6px; border-radius:999px; margin-left:6px; vertical-align:middle; }
+.pd-empty { color:#94a3b8; font-size:.8rem; padding:6px 2px; }
+</style>
+"""
+st.markdown(PD_CSS, unsafe_allow_html=True)
+
 # ---------------------------------------------------------------- helpers
 def esc(value):
     if value is None or (isinstance(value, float) and pd.isna(value)):
@@ -304,6 +334,67 @@ def agenda_actie_kaart(row, actions_df, today):
     if b3.button("+7d", key=f"sn7_{aid}", use_container_width=True):
         snooze_actie(actions_df, aid, 7, today)
         st.rerun()
+
+
+def project_action_state(pid, actions, today):
+    """Status van de eerstvolgende open actie van een project."""
+    if not len(actions) or not pid:
+        return ("none", None)
+    op = actions[(actions["relatie_type"] == "Project") &
+                 (actions["relatie_id"] == pid) & (actions["status"] == "Open")]
+    if not len(op):
+        return ("none", None)
+    ds = [x for x in op["datum_actie"].tolist() if isinstance(x, date)]
+    if not ds:
+        return ("planned", None)
+    d = min(ds)
+    if d < today:
+        return ("late", d)
+    if d == today:
+        return ("today", d)
+    return ("planned", d)
+
+
+def _pd_card(r, stage_idx, actions, prijs, today):
+    rot = project_rotting(r, today)
+    naam = esc(r.get("projectnaam") or r.get("klant_bedrijf") or "Naamloos")
+    org = esc(r.get("klant_bedrijf") or r.get("regio") or "")
+    val = euro(project_value(r, prijs))
+    segs = "".join(
+        f'<div class="pd-seg {"on" if k <= stage_idx else ""}"></div>'
+        for k in range(len(KANBAN_STAGES)))
+    state, _ = project_action_state(r.get("id"), actions, today)
+    dot = {"late": ("red", "\u25cf", "Actie te laat"),
+           "today": ("teal", "\u25cf", "Actie vandaag"),
+           "planned": ("green", "\u25cf", "Actie gepland"),
+           "none": ("amber", "\u25b2", "Geen volgende actie")}[state]
+    won = '<span class="pd-won">WON</span>' if r.get("status") == "Gewonnen" else ""
+    rotmark = " \U0001f534" if rot[0] else ""
+    rotcls = " rot" if rot[0] else ""
+    return (
+        f'<div class="pd-card{rotcls}">'
+        f'<div class="pd-segs">{segs}</div>'
+        f'<div class="pd-ttl">{naam}{won}{rotmark}</div>'
+        f'<div class="pd-org">{org}</div>'
+        f'<div class="pd-foot"><span class="pd-val">{val}</span>'
+        f'<span class="pd-dot {dot[0]}" title="{dot[2]}">{dot[1]}</span></div></div>')
+
+
+def render_pipeline_board(projects, actions, prijs, today):
+    """Pipedrive-achtig overzichtsbord (visueel)."""
+    board = projects[projects["status"].isin(KANBAN_STAGES)] if len(projects) else projects
+    cols = ""
+    for i, stage in enumerate(KANBAN_STAGES):
+        rows = board[board["status"] == stage] if len(board) else board
+        som = sum(project_value(r, prijs) for _, r in rows.iterrows()) if len(rows) else 0
+        cards = "".join(_pd_card(r, i, actions, prijs, today) for _, r in rows.iterrows()) \
+            if len(rows) else '<div class="pd-empty">—</div>'
+        cols += (
+            f'<div class="pd-col"><div class="pd-colhead">'
+            f'<div class="pd-stage">{esc(stage)}</div>'
+            f'<div class="pd-sub">{euro(som)} · {len(rows)} deals</div></div>'
+            f'<div class="pd-track">{cards}</div></div>')
+    st.markdown(f'<div class="pd-board">{cols}</div>', unsafe_allow_html=True)
 
 
 def render_kanban(projects, prijs, today):
@@ -763,8 +854,10 @@ with tabs[2]:
 with tabs[3]:
     section("Projecten", "Concrete opdrachten of eindklanten. Een project kan gekoppeld zijn aan een partner/installateur.")
 
-    section("Pijplijn", "Sleep een project naar een andere fase om de status bij te werken. 🔴 = verschraald (te lang geen contact).")
-    render_kanban(projects, prijs, today)
+    section("Pijplijn", "Overzicht per fase. 🔴 = verschraald · ● gekleurde stip = status van de volgende actie (rood=te laat, groen=gepland, ▲=geen).")
+    render_pipeline_board(projects, actions, prijs, today)
+    with st.expander("✋ Sleepmodus — versleep projecten tussen fases"):
+        render_kanban(projects, prijs, today)
     st.divider()
 
     with st.expander("➕ Nieuw project", expanded=len(projects) == 0):

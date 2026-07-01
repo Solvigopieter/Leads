@@ -120,6 +120,12 @@ De `+Xd` is het aantal dagen ná het afvinken van de vorige stap.
 
 ---
 
+## Nieuw in v6: Pipedrive-look pijplijnbord
+
+Het pijplijnbord in de tab Projecten toont nu rijke kaartjes (voortgangsbalkje,
+naam, waarde, statusstip voor de volgende actie, WON-badge, 🔴 bij verschraling),
+visueel in de stijl van Pipedrive. Slepen kan via de uitklap "✋ Sleepmodus".
+
 ## Nieuw in v5: Kanban, deal rotting, nudges en gewogen pijplijn
 
 Geïnspireerd op wat de beste sales-CRM's (Pipedrive, HubSpot, OnePageCRM) doen.
