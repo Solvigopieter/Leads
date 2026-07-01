@@ -2,7 +2,7 @@
 import uuid
 from datetime import date, timedelta
 
-from .config import PARTNER_AFGEHANDELD, PROJECT_AFGEHANDELD
+from .config import CADANS, PARTNER_AFGEHANDELD, PROJECT_AFGEHANDELD
 
 
 def new_id(prefix=""):
@@ -79,6 +79,60 @@ def partner_is_active(row):
 
 def project_is_active(row):
     return row.get("status") not in PROJECT_AFGEHANDELD
+
+
+def cadans_namen():
+    return list(CADANS.keys())
+
+
+def cadans_stappen(naam):
+    return CADANS.get(naam, [])
+
+
+def cadans_actie_dict(relatie_type, relatie_id, relatie_naam, cadans, stap_index,
+                      basisdatum, today=None):
+    """Bouwt de actie-dict voor een cadansstap. basisdatum = datum waarop de vorige
+    stap is afgerond (of de startdatum voor stap 0)."""
+    today = today or date.today()
+    stappen = cadans_stappen(cadans)
+    if stap_index >= len(stappen):
+        return None
+    stap = stappen[stap_index]
+    datum = basisdatum + timedelta(days=int(stap.get("wacht", 0)))
+    totaal = len(stappen)
+    return dict(
+        id=new_id("A"),
+        relatie_type=relatie_type,
+        relatie_id=relatie_id,
+        relatie_naam=relatie_naam,
+        actie=stap["label"],
+        datum_actie=datum,
+        prioriteit="Normaal",
+        status="Open",
+        kanaal=stap.get("kanaal", "Andere"),
+        notities=f"Cadans '{cadans}' — stap {stap_index + 1}/{totaal}",
+        aangemaakt_op=today,
+        afgerond_op="",
+        cadans=cadans,
+        cadans_stap=str(stap_index),
+    )
+
+
+def cadans_volgende(row, today=None):
+    """Geeft de dict voor de volgende cadansstap na het afronden van 'row', of None."""
+    today = today or date.today()
+    cad = str(row.get("cadans") or "").strip()
+    if not cad:
+        return None
+    try:
+        stap = int(row.get("cadans_stap") or 0)
+    except (TypeError, ValueError):
+        stap = 0
+    if stap + 1 >= len(cadans_stappen(cad)):
+        return None
+    return cadans_actie_dict(
+        row.get("relatie_type", ""), row.get("relatie_id", ""), row.get("relatie_naam", ""),
+        cad, stap + 1, today, today)
 
 
 def offerte_tekst_project(row, prijs_per_paneel):

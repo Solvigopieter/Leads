@@ -61,8 +61,34 @@ ACTION_PRIORITIES = ["Hoog", "Normaal", "Laag"]
 ACTION_CHANNELS = ["Telefoon", "E-mail", "WhatsApp", "Plaatsbezoek", "Offerte", "Administratie", "Andere"]
 ACTION_HEADERS = [
     "id", "relatie_type", "relatie_id", "relatie_naam", "actie", "datum_actie", "prioriteit", "status",
-    "kanaal", "notities", "aangemaakt_op", "afgerond_op",
+    "kanaal", "notities", "aangemaakt_op", "afgerond_op", "cadans", "cadans_stap",
 ]
+
+# ----------------------------- cadans (opvolgreeksen)
+# 'wacht' = aantal dagen tot deze stap, gerekend vanaf het afronden van de vorige stap.
+CADANS = {
+    "Standaard outreach": [
+        {"label": "1e mail sturen", "kanaal": "E-mail", "wacht": 0},
+        {"label": "Opvolgmail sturen", "kanaal": "E-mail", "wacht": 4},
+        {"label": "Bellen voor reactie", "kanaal": "Telefoon", "wacht": 4},
+        {"label": "Plaatsbezoek inplannen", "kanaal": "Plaatsbezoek", "wacht": 7},
+        {"label": "Offerte opmaken en versturen", "kanaal": "Offerte", "wacht": 5},
+        {"label": "Offerte opvolgen (bellen)", "kanaal": "Telefoon", "wacht": 7},
+        {"label": "Laatste follow-up", "kanaal": "E-mail", "wacht": 10},
+    ],
+    "Bestaande klant heractiveren": [
+        {"label": "Heractivatie-mail sturen", "kanaal": "E-mail", "wacht": 0},
+        {"label": "Bellen", "kanaal": "Telefoon", "wacht": 5},
+        {"label": "Nieuwe offerte voorstellen", "kanaal": "Offerte", "wacht": 5},
+        {"label": "Offerte opvolgen", "kanaal": "Telefoon", "wacht": 7},
+    ],
+    "Snel (warme lead)": [
+        {"label": "Bellen voor afspraak", "kanaal": "Telefoon", "wacht": 0},
+        {"label": "Plaatsbezoek", "kanaal": "Plaatsbezoek", "wacht": 5},
+        {"label": "Offerte versturen", "kanaal": "Offerte", "wacht": 3},
+        {"label": "Offerte opvolgen", "kanaal": "Telefoon", "wacht": 5},
+    ],
+}
 
 # ----------------------------- plaatsbezoeken
 VISIT_HEADERS = [
@@ -139,6 +165,8 @@ LABELS = {
     "kanaal": "Kanaal",
     "aangemaakt_op": "Aangemaakt op",
     "afgerond_op": "Afgerond op",
+    "cadans": "Cadans",
+    "cadans_stap": "Stap",
     "project_id": "Project-ID",
     "datum": "Datum",
     "contact_ter_plaatse": "Contact ter plaatse",

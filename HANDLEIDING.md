@@ -80,3 +80,40 @@ De app bewaart foto’s als links. Upload foto’s naar Google Drive en plak de 
 ## Excel-export
 
 Ga naar **Data & export** en klik op **Exporteer volledige CRM naar Excel**. De export bevat aparte werkbladen voor Partners, Projecten, Acties, Plaatsbezoeken en Log.
+
+---
+
+## Nieuw: Agenda + automatische opvolgreeksen (cadans)
+
+### Cadans — je opvolging plant zichzelf in
+Een *cadans* is een vaste opvolgvolgorde. Je start ze één keer; daarna verschijnt
+telkens de volgende stap automatisch zodra je de vorige afvinkt.
+
+Ingebouwde reeksen (aan te passen in `core/config.py` onder `CADANS`):
+- **Standaard outreach:** 1e mail → opvolgmail (+4d) → bellen (+4d) →
+  plaatsbezoek (+7d) → offerte (+5d) → offerte opvolgen (+7d) → laatste follow-up (+10d)
+- **Bestaande klant heractiveren**
+- **Snel (warme lead)**
+
+De `+Xd` is het aantal dagen ná het afvinken van de vorige stap.
+
+### Zo gebruik je het
+1. Tab **🗓 Agenda** → **🔁 Opvolgreeks starten** → kies partner/project + reeks +
+   startdatum → *Reeks starten*. Stap 1 staat nu in je agenda.
+2. Werk je acties af met de **✓ Afronden**-knop. Dan gebeurt automatisch:
+   - de actie gaat op *Gedaan* en komt in het Log;
+   - de **volgende stap** wordt ingepland op de juiste datum.
+3. Nog niet toe aan een actie? Gebruik **+3d** of **+7d** om ze uit te stellen.
+
+### Agenda-tab
+- **Komende 14 dagen:** strip met per dag het aantal geplande acties; dag 0 toont
+  ook hoeveel er te laat zijn.
+- **Te laat / Vandaag / Deze week:** je werklijst met afrond- en uitstelknoppen.
+- **Later gepland:** klapt open voor alles verderop.
+
+### Belangrijk
+- De cadans loopt automatisch door zolang je afvinkt via **✓ Afronden**. Zet je een
+  actie handmatig op *Gedaan* in het Actieblad-tabblad, dan wordt de volgende stap
+  **niet** aangemaakt (bewust, om dubbels te vermijden). Gebruik dus de Afronden-knop.
+- Cadans-info staat in twee nieuwe kolommen op het Acties-blad: `cadans` en
+  `cadans_stap`. Niet handmatig aanpassen.
