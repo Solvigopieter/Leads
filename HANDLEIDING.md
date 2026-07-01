@@ -102,3 +102,8 @@ Onder **Data & export** staan twee nuttige knoppen:
 
 Het tabblad **Agenda** is teruggezet. Daar zie je acties op datum, kan je acties afronden, +3 dagen of +7 dagen uitstellen en opvolgreeksen/cadansen starten.
 
+
+
+## v8.2 fix
+
+Agenda-fout opgelost: `cadans_stappen` wordt nu correct geïmporteerd, waardoor het tabblad Agenda opnieuw opent.

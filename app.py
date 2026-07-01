@@ -38,6 +38,7 @@ from core.logic import (
     as_date,
     cadans_actie_dict,
     cadans_namen,
+    cadans_stappen,
     cadans_volgende,
     euro,
     new_id,

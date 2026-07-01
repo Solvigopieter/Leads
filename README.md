@@ -114,3 +114,8 @@ HANDLEIDING.md
 ```
 
 Daarna committen en de Streamlit-app rebooten.
+
+
+## v8.2 fix
+
+Agenda-fout opgelost: `cadans_stappen` wordt nu correct geïmporteerd, waardoor het tabblad Agenda opnieuw opent.
