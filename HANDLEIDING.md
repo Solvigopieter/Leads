@@ -117,3 +117,42 @@ De `+Xd` is het aantal dagen ná het afvinken van de vorige stap.
   **niet** aangemaakt (bewust, om dubbels te vermijden). Gebruik dus de Afronden-knop.
 - Cadans-info staat in twee nieuwe kolommen op het Acties-blad: `cadans` en
   `cadans_stap`. Niet handmatig aanpassen.
+
+---
+
+## Nieuw in v5: Kanban, deal rotting, nudges en gewogen pijplijn
+
+Geïnspireerd op wat de beste sales-CRM's (Pipedrive, HubSpot, OnePageCRM) doen.
+
+### 🧲 Kanban-pijplijn (slepen)
+Bovenaan de tab **🏗 Projecten** staat nu een sleepbaar bord. Elke kolom is een
+fase; sleep een projectkaart naar een andere kolom en de status wordt meteen
+opgeslagen. Elke kolomkop toont het aantal projecten en de totale waarde.
+Kaarten met **🔴** zijn *verschraald* (te lang geen contact).
+
+### 🔴 Deal rotting
+Een actief project dat te lang geen contact had, wordt gemarkeerd als
+verschraald. De drempel verschilt per fase (in te stellen in `core/config.py`
+onder `ROTTING_DAYS`, standaard 5–14 dagen). Zo bloedt geen warm project
+stilletjes dood. Rotting kijkt naar de kolom **laatste_contact**.
+
+### 🎯 Nudges op het dashboard
+Een automatisch signalenpaneel (zoals Pipedrive's sales-assistent), volledig
+regelgebaseerd — geen AI nodig:
+- acties die te laat zijn;
+- projecten die verschralen;
+- **actieve projecten zonder geplande volgende actie** (het grootste lek);
+- acties van vandaag.
+
+### ⚖ Gewogen pijplijn
+Elke fase heeft een winstkans (in `core/config.py` onder `STAGE_PROBABILITY`,
+bv. Offerte verstuurd = 60%). Het dashboard toont naast de brutopijplijnwaarde
+nu ook de **gewogen** waarde (waarde × kans) — een realistischer beeld voor
+planning.
+
+### Look & feel
+De interface kreeg een strakkere, professionelere opfrissing (rustiger
+achtergrond, vlakkere tegels, duidelijke kolomkoppen).
+
+> Nieuw pakket: `streamlit-sortables` (staat in requirements.txt) — nodig voor
+> het sleepbord. Verschijnt automatisch na de volgende deploy.

@@ -2,7 +2,8 @@
 import uuid
 from datetime import date, timedelta
 
-from .config import CADANS, PARTNER_AFGEHANDELD, PROJECT_AFGEHANDELD
+from .config import (CADANS, PARTNER_AFGEHANDELD, PROJECT_AFGEHANDELD,
+                    ROTTING_DAYS, ROTTING_DEFAULT, STAGE_PROBABILITY)
 
 
 def new_id(prefix=""):
@@ -40,6 +41,34 @@ def project_value(row, prijs_per_paneel):
     if ingevuld > 0:
         return ingevuld
     return deal_value(row.get("aantal_panelen", 0), prijs_per_paneel)
+
+
+def stage_kans(status):
+    return STAGE_PROBABILITY.get(str(status), 0.0)
+
+
+def weighted_value(row, prijs_per_paneel):
+    """Gewogen dealwaarde = waarde x winstkans van de fase."""
+    return project_value(row, prijs_per_paneel) * stage_kans(row.get("status"))
+
+
+def dagen_sinds(d, today=None):
+    today = today or date.today()
+    if not isinstance(d, date):
+        return None
+    return (today - d).days
+
+
+def project_rotting(row, today=None):
+    """Geeft (is_rot, dagen_stil, drempel), o.b.v. 'laatste_contact'."""
+    today = today or date.today()
+    drempel = ROTTING_DAYS.get(str(row.get("status")), ROTTING_DEFAULT)
+    if str(row.get("status")) in PROJECT_AFGEHANDELD:
+        return (False, None, drempel)
+    dagen = dagen_sinds(row.get("laatste_contact"), today)
+    if dagen is None:
+        return (False, None, drempel)
+    return (dagen > drempel, dagen, drempel)
 
 
 def opvolg_status(status, datum_actie, afgehandeld, today=None):

@@ -13,6 +13,7 @@ from core.config import (
     ACTION_PRIORITIES,
     ACTION_STATUSES,
     BRON_TYPES,
+    KANBAN_STAGES,
     LABELS,
     LEGACY_PARTNER_TYPES,
     LOG_HEADERS,
@@ -35,13 +36,23 @@ from core.logic import (
     cadans_namen,
     cadans_stappen,
     cadans_volgende,
+    dagen_sinds,
     deal_value,
     euro,
     new_id,
     offerte_tekst_project,
+    project_rotting,
     project_value,
+    stage_kans,
+    weighted_value,
     whole,
 )
+
+try:
+    from streamlit_sortables import sort_items
+    SORTABLES = True
+except Exception:
+    SORTABLES = False
 
 st.set_page_config(page_title="Solvigo CRM", page_icon="🌞", layout="wide")
 
@@ -100,6 +111,41 @@ code { color: #0f766e; }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
+
+V5_CSS = """
+<style>
+/* --- v5: strakkere, professionelere look --- */
+.stApp { background: #f6f8fa; }
+.block-container { padding-top: 1.4rem; }
+h1,h2,h3 { letter-spacing: -0.02em; }
+/* compactere, corporate hero */
+.hero { background: linear-gradient(120deg, #0b3b35 0%, #0f766e 62%, #12857a 100%);
+        border-radius: 20px; padding: 1.5rem 1.8rem; box-shadow: 0 8px 24px rgba(11,59,53,.16); }
+.hero h1 { font-size: 2.05rem; margin:.1rem 0 .4rem 0; }
+.hero-panel { border-radius: 16px; }
+/* KPI-tegels vlakker en strakker */
+div[data-testid="stMetric"] { border-radius: 14px; box-shadow: 0 2px 6px rgba(15,34,31,.06);
+        border: 1px solid #e6ebe9; padding: .85rem 1rem; }
+div[data-testid="stMetricValue"] { font-size: 1.5rem; }
+/* nudge-lijst */
+.nudge { display:flex; gap:.7rem; align-items:flex-start; background:#fff; border:1px solid #e6ebe9;
+        border-left:4px solid #94a3b8; border-radius:12px; padding:.7rem .9rem; margin-bottom:.55rem;
+        box-shadow:0 2px 6px rgba(15,34,31,.05); }
+.nudge.warn { border-left-color:#b42318; }
+.nudge.info { border-left-color:#0f766e; }
+.nudge.gold { border-left-color:#f2b84b; }
+.nudge .ic { font-size:1.1rem; line-height:1.3; }
+.nudge .tx { font-size:.92rem; color:#10231f; }
+.nudge .tx b { color:#0b3b35; }
+/* Kanban */
+.kan-col-head { display:flex; justify-content:space-between; align-items:baseline;
+        padding:.5rem .7rem; border-radius:10px 10px 0 0; color:#fff; font-weight:850; font-size:.86rem; }
+.kan-col-sum { font-size:.75rem; font-weight:700; opacity:.9; }
+.kan-wrap { background:#eef2f1; border:1px solid #e0e7e4; border-top:none;
+        border-radius:0 0 12px 12px; padding:.5rem; min-height:80px; }
+</style>
+"""
+st.markdown(V5_CSS, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------- helpers
 def esc(value):
@@ -260,6 +306,65 @@ def agenda_actie_kaart(row, actions_df, today):
         st.rerun()
 
 
+def render_kanban(projects, prijs, today):
+    """Sleepbaar Kanban-bord van projecten per fase (Pipedrive-stijl)."""
+    if not SORTABLES:
+        st.info("Sleepbord vereist het pakket 'streamlit-sortables' (staat in requirements.txt). "
+                "Na de eerstvolgende deploy verschijnt het hier automatisch.")
+        return
+    board = projects[projects["status"].isin(KANBAN_STAGES)] if len(projects) else projects
+    if not len(board):
+        st.caption("Nog geen projecten in de pijplijn.")
+        return
+    label_to_id, header_to_stage, items = {}, {}, []
+    for stage in KANBAN_STAGES:
+        rows = board[board["status"] == stage]
+        som = sum(project_value(r, prijs) for _, r in rows.iterrows()) if len(rows) else 0
+        header = f"{stage}  ·  {len(rows)}  ·  {euro(som)}"
+        header_to_stage[header] = stage
+        labels = []
+        for _, r in rows.iterrows():
+            rot = project_rotting(r, today)
+            naam = r.get("projectnaam") or r.get("klant_bedrijf") or "Naamloos"
+            base = ("🔴 " if rot[0] else "") + f"{naam} · {euro(project_value(r, prijs))}"
+            if rot[0] and rot[1] is not None:
+                base += f" · {rot[1]}d stil"
+            label, n = base, 2
+            while label in label_to_id:
+                label, n = f"{base} ({n})", n + 1
+            label_to_id[label] = r["id"]
+            labels.append(label)
+        items.append({"header": header, "items": labels})
+
+    try:
+        result = sort_items(items, multi_containers=True, key="kanban_board")
+    except Exception as e:
+        st.warning(f"Kon het sleepbord niet laden ({e}). Gebruik zolang de projecttabel hieronder.")
+        return
+
+    changes = {}
+    for col in result:
+        stage = header_to_stage.get(col["header"])
+        if stage is None:
+            continue
+        for lbl in col["items"]:
+            pid = label_to_id.get(lbl)
+            if not pid:
+                continue
+            huidig = board.loc[board["id"] == pid, "status"]
+            if len(huidig) and huidig.iloc[0] != stage:
+                changes[pid] = stage
+    if changes:
+        df = projects.copy()
+        for pid, stage in changes.items():
+            df.loc[df["id"] == pid, "status"] = stage
+            if stage == "Gewonnen":
+                df.loc[df["id"] == pid, "laatste_contact"] = today
+        sheets.save_projects(df)
+        st.toast(f"{len(changes)} project(en) verplaatst.")
+        st.rerun()
+
+
 def to_excel_bytes(partners, projects, actions, visits, log):
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xl:
@@ -405,6 +510,10 @@ today_actions = actions[actions["_bucket"] == "Vandaag"].sort_values("datum_acti
 week_actions = actions[actions["_bucket"] == "Deze week"].sort_values("datum_actie") if len(actions) else actions
 active_projects = projects[~projects["status"].isin(PROJECT_AFGEHANDELD)] if len(projects) else projects
 pipeline_value = sum(project_value(r, prijs) for _, r in active_projects.iterrows()) if len(active_projects) else 0
+weighted_pipeline = sum(weighted_value(r, prijs) for _, r in active_projects.iterrows()) if len(active_projects) else 0
+rotting_rows = [r for _, r in active_projects.iterrows() if project_rotting(r, today)[0]] if len(active_projects) else []
+open_project_ids = set(open_actions[open_actions["relatie_type"] == "Project"]["relatie_id"]) if len(open_actions) else set()
+projects_no_action = active_projects[~active_projects["id"].isin(open_project_ids)] if len(active_projects) else active_projects
 
 st.markdown(
     f"""
@@ -428,12 +537,36 @@ tabs = st.tabs(["📊 Dashboard", "✅ Actieblad", "🗓 Agenda", "🏗 Projecte
 
 # ================================================================ DASHBOARD
 with tabs[0]:
-    k1, k2, k3, k4, k5 = st.columns(5)
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
     k1.metric("Open acties", whole(len(open_actions)))
     k2.metric("Te laat", whole(len(late_actions)))
-    k3.metric("Deze week", whole(len(week_actions)))
-    k4.metric("Actieve projecten", whole(len(active_projects)))
-    k5.metric("Pijplijnwaarde", euro(pipeline_value))
+    k3.metric("Actieve projecten", whole(len(active_projects)))
+    k4.metric("Pijplijnwaarde", euro(pipeline_value))
+    k5.metric("Gewogen pijplijn", euro(weighted_pipeline), help="Waarde × winstkans per fase")
+    k6.metric("Verschraald", whole(len(rotting_rows)), help="Projecten te lang zonder contact")
+
+    # --- nudges (à la Pipedrive sales assistant) ---
+    section("Wat vraagt je aandacht?", "Automatische signalen op basis van je pijplijn.")
+    nudges = []
+    if len(late_actions):
+        nudges.append(("warn", "⏰", f"<b>{len(late_actions)} acties te laat.</b> Werk ze weg in het Actieblad of de Agenda."))
+    if len(rotting_rows):
+        namen = ", ".join(esc(r.get("projectnaam") or r.get("klant_bedrijf") or "?") for r in rotting_rows[:3])
+        extra = f" +{len(rotting_rows) - 3} meer" if len(rotting_rows) > 3 else ""
+        nudges.append(("warn", "🔴", f"<b>{len(rotting_rows)} projecten verschralen</b> (te lang geen contact): {namen}{extra}."))
+    if len(projects_no_action):
+        namen = ", ".join(esc(r.get("projectnaam") or r.get("klant_bedrijf") or "?") for _, r in projects_no_action.head(3).iterrows())
+        extra = f" +{len(projects_no_action) - 3} meer" if len(projects_no_action) > 3 else ""
+        nudges.append(("gold", "🎯", f"<b>{len(projects_no_action)} actieve projecten zonder volgende actie</b>: {namen}{extra}. Plan een stap in."))
+    if len(today_actions):
+        nudges.append(("info", "📌", f"<b>{len(today_actions)} acties vandaag</b> gepland."))
+    if not nudges:
+        st.markdown('<div class="success-card"><strong>Alles onder controle.</strong> Geen dringende signalen.</div>', unsafe_allow_html=True)
+    else:
+        html_nudges = "".join(
+            f'<div class="nudge {kind}"><div class="ic">{ic}</div><div class="tx">{tx}</div></div>'
+            for kind, ic, tx in nudges)
+        st.markdown(html_nudges, unsafe_allow_html=True)
 
     c1, c2 = st.columns([1.1, 1])
     with c1:
@@ -629,6 +762,10 @@ with tabs[2]:
 # ================================================================ PROJECTEN
 with tabs[3]:
     section("Projecten", "Concrete opdrachten of eindklanten. Een project kan gekoppeld zijn aan een partner/installateur.")
+
+    section("Pijplijn", "Sleep een project naar een andere fase om de status bij te werken. 🔴 = verschraald (te lang geen contact).")
+    render_kanban(projects, prijs, today)
+    st.divider()
 
     with st.expander("➕ Nieuw project", expanded=len(projects) == 0):
         p_opts = partner_select_options(partners)

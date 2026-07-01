@@ -39,6 +39,38 @@ PROJECT_STATUSES = [
     "No-go",
 ]
 PROJECT_AFGEHANDELD = {"Gewonnen", "Verloren", "No-go"}
+
+# Winstkans per fase -> gewogen pijplijnwaarde
+STAGE_PROBABILITY = {
+    "Nieuwe aanvraag": 0.10,
+    "Te contacteren": 0.10,
+    "Info gevraagd": 0.20,
+    "Plaatsbezoek gepland": 0.35,
+    "Verslag maken": 0.45,
+    "Offerte maken": 0.55,
+    "Offerte verstuurd": 0.60,
+    "Gewonnen": 1.0,
+    "Verloren": 0.0,
+    "No-go": 0.0,
+}
+
+# Deal rotting: aantal dagen zonder contact voor een project 'verschraalt'
+ROTTING_DAYS = {
+    "Nieuwe aanvraag": 5,
+    "Te contacteren": 5,
+    "Info gevraagd": 7,
+    "Plaatsbezoek gepland": 10,
+    "Verslag maken": 5,
+    "Offerte maken": 5,
+    "Offerte verstuurd": 10,
+}
+ROTTING_DEFAULT = 14
+
+# Kolommen van het Kanban-bord (afgehandelde 'Verloren'/'No-go' tonen we niet)
+KANBAN_STAGES = [
+    "Nieuwe aanvraag", "Te contacteren", "Info gevraagd", "Plaatsbezoek gepland",
+    "Verslag maken", "Offerte maken", "Offerte verstuurd", "Gewonnen",
+]
 PROJECT_HEADERS = [
     "id", "projectnaam", "klant_bedrijf", "contactpersoon", "email", "telefoon", "adres", "regio",
     "aantal_panelen", "partner_id", "partner_bedrijf", "bron_type", "status", "eerste_contact",
