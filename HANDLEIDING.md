@@ -111,3 +111,15 @@ Agenda-fout opgelost: `cadans_stappen` wordt nu correct geïmporteerd, waardoor 
 
 ## v8.3 fix
 - Acties afronden en uitstellen bewaart datums nu als ISO-tekst, zodat pandas/Streamlit niet crasht op datumkolommen.
+
+
+## Snel beheer gebruiken
+
+Gebruik het tabblad **Snel beheer** voor de dagelijkse workflow:
+
+1. Zet projecten snel naar een nieuwe status. De app past automatisch de volgende actie aan.
+2. Voeg in één formulier een klant + project toe.
+3. Voeg een partner/installateur of losse actie toe.
+4. Verwijder items via een selectielijst met bevestiging.
+
+De grote tabellen blijven bestaan voor bulkbewerkingen, maar zijn niet meer nodig voor normaal gebruik.

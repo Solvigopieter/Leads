@@ -580,7 +580,7 @@ st.markdown(
     f"""
     <div class="hero">
       <div>
-        <p class="eyebrow">Solvigo CRM v8.1</p>
+        <p class="eyebrow">Solvigo CRM v9</p>
         <h1>Partners → klanten → projecten → acties</h1>
         <p>Een installateur is een partner/bron. Een jaarlijkse eindklant is een klant. Elke offerte, reiniging of plaatsbezoek is een apart project met automatische opvolging.</p>
       </div>
@@ -594,7 +594,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-tabs = st.tabs(["📊 Dashboard", "✅ Actieblad", "🗓 Agenda", "👥 Klanten", "🏗 Projecten", "🤝 Partners", "📍 Plaatsbezoek", "🗂 Data & export"])
+tabs = st.tabs(["📊 Dashboard", "✅ Actieblad", "🗓 Agenda", "👥 Klanten", "🏗 Projecten", "🤝 Partners", "📍 Plaatsbezoek", "🗂 Data & export", "➕ Snel beheer"])
 
 # ================================================================ DASHBOARD
 with tabs[0]:
@@ -1372,3 +1372,238 @@ with tabs[7]:
     with st.expander("Technische tabbladen in Google Sheets"):
         st.write("De app gebruikt nu deze tabbladen:")
         st.code("Partners\nKlanten\nProjecten\nActies\nPlaatsbezoeken\nLog")
+
+
+# ================================================================ SNEL BEHEER
+with tabs[8]:
+    section("Snel beheer", "Toevoegen, status wijzigen en verwijderen zonder in grote tabellen te werken.")
+
+    st.markdown(
+        """
+        <div class="success-card"><strong>Nieuwe simpele manier:</strong><br>
+        Gebruik dit tabblad voor 90% van je werk. De grote tabellen blijven bestaan als backup/Excel-achtige bewerking, maar hier kan je sneller werken.</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ------------------------- snelle statuswijziging
+    st.markdown("### 1. Project snel naar volgende status zetten")
+    if len(projects):
+        with st.form("quick_status_project"):
+            c1, c2 = st.columns([2, 1])
+            project_id = c1.selectbox(
+                "Project",
+                projects["id"].tolist(),
+                format_func=lambda i: projects.loc[projects["id"] == i, "projectnaam"].iloc[0] or projects.loc[projects["id"] == i, "klant_bedrijf"].iloc[0] or "Naamloos project",
+                key="quick_status_project_id",
+            )
+            current = projects[projects["id"] == project_id].iloc[0].to_dict()
+            current_status = current.get("status") if current.get("status") in PROJECT_STATUSES else PROJECT_STATUSES[0]
+            new_status = c2.selectbox("Nieuwe status", PROJECT_STATUSES, index=PROJECT_STATUSES.index(current_status), key="quick_status_new")
+            suggestion = next_action_for_status("Project", new_status, today)
+            st.caption(workflow_hint("Project", new_status, today))
+            ok_status = st.form_submit_button("Status opslaan + actie automatisch bijwerken", type="primary", use_container_width=True)
+        if ok_status:
+            full = projects.copy().reindex(columns=PROJECT_HEADERS)
+            idxs = full.index[full["id"].astype(str) == str(project_id)]
+            if len(idxs):
+                idx = idxs[0]
+                old_status = full.loc[idx, "status"]
+                rel_name = full.loc[idx, "projectnaam"] or full.loc[idx, "klant_bedrijf"] or "Naamloos project"
+                full.loc[idx, "status"] = new_status
+                full.loc[idx, "laatste_contact"] = sheet_date(today)
+                full.loc[idx, "volgende_actie"] = suggestion["actie"]
+                full.loc[idx, "datum_actie"] = suggestion["datum_actie"] if suggestion["actie"] else ""
+                actions_work = actions.drop(columns=["_bucket"], errors="ignore").copy().reindex(columns=ACTION_HEADERS)
+                customers_work = customers.copy().reindex(columns=CUSTOMER_HEADERS)
+                actions_work, _ = sync_next_action(actions_work, "Project", project_id, rel_name, suggestion, today, f"Snel beheer: status {old_status} → {new_status}")
+                customers_work, actions_work, _ = update_customer_after_project(customers_work, actions_work, full.loc[idx].to_dict(), today)
+                sheets.save_projects(full)
+                sheets.save_actions(actions_work)
+                sheets.save_customers(customers_work)
+                sheets.append_log(dict(id=new_id("L"), relatie_type="Project", relatie_id=project_id, relatie_naam=rel_name, datum=sheet_date(today), soort="Notitie", notitie=f"Snel beheer: status gewijzigd van {old_status} naar {new_status}."))
+                st.success("Status en volgende actie bijgewerkt.")
+                st.rerun()
+    else:
+        st.info("Nog geen projecten om een status te wijzigen.")
+
+    st.divider()
+
+    # ------------------------- snel toevoegen
+    st.markdown("### 2. Snel toevoegen")
+    add_kind = st.radio(
+        "Wat wil je toevoegen?",
+        ["Klant + project", "Partner/installateur", "Losse actie"],
+        horizontal=True,
+        key="quick_add_kind",
+    )
+
+    if add_kind == "Klant + project":
+        with st.form("quick_add_customer_project", clear_on_submit=True):
+            st.caption("Gebruik dit voor een losse aanvraag, bestaande klant of jaarlijks terugkerend project. De app maakt automatisch een klantfiche, project én actie aan.")
+            c1, c2 = st.columns(2)
+            klant = c1.text_input("Klant / bedrijf *", key="quick_klant")
+            projectnaam = c2.text_input("Projectnaam", placeholder="Leeg laten = Reiniging klantnaam jaar", key="quick_projectnaam")
+            contact = c1.text_input("Contactpersoon", key="quick_contact")
+            tel = c2.text_input("Telefoon", key="quick_tel")
+            email = c1.text_input("E-mail", key="quick_email")
+            regio = c2.text_input("Regio", key="quick_regio")
+            adres = st.text_input("Adres", key="quick_adres")
+            panelen = c1.number_input("Aantal panelen", min_value=0, step=50, value=0, key="quick_panelen")
+            waarde = c2.number_input("Verwachte waarde (€)", min_value=0.0, step=100.0, value=0.0, key="quick_waarde", help="Laat op 0 om automatisch panelen × richtprijs te gebruiken.")
+            bron_type = c1.selectbox("Bron", BRON_TYPES, index=BRON_TYPES.index("Los project") if "Los project" in BRON_TYPES else 0, key="quick_bron")
+            p_opts = partner_options(partners)
+            p_names = [x[1] for x in p_opts]
+            p_label = c2.selectbox("Partner / doorverwijzer", p_names, key="quick_partner")
+            p_id = p_opts[p_names.index(p_label)][0]
+            status = c1.selectbox("Projectstatus", PROJECT_STATUSES, index=PROJECT_STATUSES.index("Nieuwe aanvraag"), key="quick_project_status")
+            terugkerend = c2.selectbox("Terugkerend?", ["Nee", "Ja"], key="quick_terug")
+            frequentie = c1.selectbox("Frequentie", ["", "Jaarlijks", "Halfjaarlijks", "Eenmalig", "Op aanvraag"], index=1 if terugkerend == "Ja" else 0, key="quick_freq")
+            notities = st.text_area("Notities", key="quick_notities")
+            st.caption(workflow_hint("Project", status, today))
+            ok = st.form_submit_button("Klant + project toevoegen", type="primary", use_container_width=True)
+        if ok:
+            klant = klant.strip()
+            if not klant:
+                st.warning("Vul minstens een klant/bedrijf in.")
+            else:
+                customers_work = customers.copy().reindex(columns=CUSTOMER_HEADERS)
+                existing = customers_work[customers_work["klant_bedrijf"].astype(str).str.lower() == klant.lower()] if len(customers_work) else pd.DataFrame()
+                if len(existing):
+                    cid = existing.iloc[0]["id"]
+                else:
+                    cid = new_id("K")
+                    klant_status = "Terugkerende klant" if terugkerend == "Ja" else "Prospect"
+                    customers_work = pd.concat([
+                        customers_work,
+                        pd.DataFrame([dict(
+                            id=cid, klant_bedrijf=klant, type="Bedrijf", contactpersoon=contact, email=email, telefoon=tel,
+                            adres=adres, regio=regio, status=klant_status, bron_type=bron_type,
+                            partner_id=p_id, partner_bedrijf="" if p_label == "Geen partner/installateur" else p_label,
+                            terugkerend=terugkerend, frequentie=frequentie, laatste_reiniging="", volgende_contact="",
+                            laatste_contact="", volgende_actie="", datum_actie="", notities=notities,
+                        )]).reindex(columns=CUSTOMER_HEADERS)
+                    ], ignore_index=True)
+                pid = new_id("P")
+                pname = projectnaam.strip() or f"Reiniging {klant} {today.year}"
+                suggestion = next_action_for_status("Project", status, today)
+                project_waarde = waarde if waarde else float(panelen or 0) * float(prijs or 0)
+                projects_work = projects.copy().reindex(columns=PROJECT_HEADERS)
+                projects_work = pd.concat([
+                    projects_work,
+                    pd.DataFrame([dict(
+                        id=pid, projectnaam=pname, klant_bedrijf=klant, contactpersoon=contact, email=email, telefoon=tel,
+                        adres=adres, regio=regio, aantal_panelen=panelen, partner_id=p_id,
+                        partner_bedrijf="" if p_label == "Geen partner/installateur" else p_label, bron_type=bron_type,
+                        status=status, eerste_contact="", laatste_contact="", volgende_actie=suggestion["actie"],
+                        datum_actie=suggestion["datum_actie"] if suggestion["actie"] else "", verwachte_waarde=project_waarde,
+                        notities=notities, klant_id=cid, terugkerend=terugkerend, frequentie=frequentie, hercontactdatum="",
+                    )]).reindex(columns=PROJECT_HEADERS)
+                ], ignore_index=True)
+                actions_work = actions.drop(columns=["_bucket"], errors="ignore").copy().reindex(columns=ACTION_HEADERS)
+                if suggestion["actie"]:
+                    actions_work = pd.concat([
+                        actions_work,
+                        pd.DataFrame([dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=pname,
+                                           actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"],
+                                           status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt via Snel beheer",
+                                           aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap="")]).reindex(columns=ACTION_HEADERS)
+                    ], ignore_index=True)
+                sheets.save_customers(customers_work)
+                sheets.save_projects(projects_work)
+                sheets.save_actions(actions_work)
+                sheets.append_log(dict(id=new_id("L"), relatie_type="Project", relatie_id=pid, relatie_naam=pname, datum=sheet_date(today), soort="Notitie", notitie="Aangemaakt via Snel beheer."))
+                st.success("Klant, project en opvolgactie toegevoegd.")
+                st.rerun()
+
+    elif add_kind == "Partner/installateur":
+        with st.form("quick_add_partner", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            bedrijf = c1.text_input("Partner / installateur *", key="quick_partner_bedrijf")
+            typ = c2.selectbox("Type", PARTNER_TYPES, key="quick_partner_type")
+            contact = c1.text_input("Contactpersoon", key="quick_partner_contact")
+            tel = c2.text_input("Telefoon", key="quick_partner_tel")
+            email = c1.text_input("E-mail", key="quick_partner_email")
+            regio = c2.text_input("Regio", key="quick_partner_regio")
+            status = c1.selectbox("Status", PARTNER_STATUSES, index=PARTNER_STATUSES.index("Te contacteren"), key="quick_partner_status")
+            bron = c2.text_input("Bron", key="quick_partner_bron")
+            notities = st.text_area("Notities", key="quick_partner_notities")
+            st.caption(workflow_hint("Partner", status, today))
+            ok = st.form_submit_button("Partner toevoegen", type="primary", use_container_width=True)
+        if ok:
+            bedrijf = bedrijf.strip()
+            if not bedrijf:
+                st.warning("Vul minstens de partner/installateur in.")
+            else:
+                pid = new_id("R")
+                suggestion = next_action_for_status("Partner", status, today)
+                sheets.append_partner(dict(id=pid, bedrijf=bedrijf, type=typ, contactpersoon=contact, functie="", email=email, telefoon=tel, regio=regio, website="", status=status, bron=bron, eerste_contact="", laatste_contact="", volgende_actie=suggestion["actie"], datum_actie=suggestion["datum_actie"] if suggestion["actie"] else "", notities=notities))
+                if suggestion["actie"]:
+                    sheets.append_action(dict(id=new_id("A"), relatie_type="Partner", relatie_id=pid, relatie_naam=bedrijf, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt via Snel beheer", aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
+                st.success("Partner en opvolgactie toegevoegd.")
+                st.rerun()
+
+    else:
+        rels = relation_options(partners, customers, projects)
+        with st.form("quick_add_action", clear_on_submit=True):
+            rel_index = st.selectbox("Koppelen aan", list(range(len(rels))), format_func=lambda i: f"{rels[i][0] or 'Geen'} — {rels[i][2]}", key="quick_action_rel")
+            c1, c2, c3 = st.columns([2, 1, 1])
+            actie = c1.text_input("Actie *", placeholder="Bv. bellen / offerte opvolgen", key="quick_action_name")
+            datum_actie = c2.date_input("Datum", value=today, key="quick_action_date")
+            kanaal = c3.selectbox("Kanaal", ACTION_CHANNELS, key="quick_action_channel")
+            prio = c2.selectbox("Prioriteit", ACTION_PRIORITIES, index=1, key="quick_action_prio")
+            notities = st.text_area("Notities", key="quick_action_notes")
+            ok = st.form_submit_button("Actie toevoegen", type="primary", use_container_width=True)
+        if ok:
+            if not actie.strip():
+                st.warning("Vul een actie in.")
+            else:
+                rtype, rid, rname = rels[rel_index]
+                sheets.append_action(dict(id=new_id("A"), relatie_type=rtype, relatie_id=rid, relatie_naam=rname, actie=actie, datum_actie=datum_actie, prioriteit=prio, status="Open", kanaal=kanaal, notities=notities, aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
+                st.success("Actie toegevoegd.")
+                st.rerun()
+
+    st.divider()
+
+    # ------------------------- simpel verwijderen
+    st.markdown("### 3. Simpel verwijderen")
+    st.warning("Verwijderen is definitief in de Google Sheet. Twijfel je? Zet een project liever op Verloren / No-go of een actie op Geannuleerd.")
+    del_kind = st.selectbox("Wat wil je verwijderen?", ["Actie", "Project", "Klant", "Partner", "Plaatsbezoek"], key="delete_kind")
+    delete_map = {
+        "Actie": (actions.drop(columns=["_bucket"], errors="ignore"), ACTION_HEADERS, "id", "actie", sheets.save_actions, None),
+        "Project": (projects, PROJECT_HEADERS, "id", "projectnaam", sheets.save_projects, "Project"),
+        "Klant": (customers, CUSTOMER_HEADERS, "id", "klant_bedrijf", sheets.save_customers, "Klant"),
+        "Partner": (partners, PARTNER_HEADERS, "id", "bedrijf", sheets.save_partners, "Partner"),
+        "Plaatsbezoek": (visits, VISIT_HEADERS, "id", "projectnaam", sheets.save_visits, None),
+    }
+    df_del, headers_del, id_col, label_col, save_func, rel_type_for_actions = delete_map[del_kind]
+    if not len(df_del):
+        st.info(f"Geen {del_kind.lower()}s om te verwijderen.")
+    else:
+        options = df_del[id_col].astype(str).tolist()
+        selected_delete = st.selectbox(
+            f"Kies {del_kind.lower()}",
+            options,
+            format_func=lambda i: str(df_del.loc[df_del[id_col].astype(str) == str(i), label_col].iloc[0] or i),
+            key="delete_selected",
+        )
+        selected_row = df_del[df_del[id_col].astype(str) == str(selected_delete)].iloc[0].to_dict()
+        st.write(f"Geselecteerd: **{selected_row.get(label_col) or selected_delete}**")
+        delete_linked_actions = False
+        if rel_type_for_actions:
+            linked_open = actions[(actions["relatie_type"].astype(str) == rel_type_for_actions) & (actions["relatie_id"].astype(str) == str(selected_delete)) & (actions["status"].astype(str) == "Open")] if len(actions) else pd.DataFrame()
+            delete_linked_actions = st.checkbox(f"Ook {len(linked_open)} gekoppelde open actie(s) verwijderen", value=True, key="delete_linked_actions")
+        confirm = st.text_input("Typ VERWIJDER om te bevestigen", key="delete_confirm")
+        if st.button("🗑 Definitief verwijderen", type="primary", use_container_width=True, key="delete_button"):
+            if confirm.strip().upper() != "VERWIJDER":
+                st.error("Niet verwijderd. Typ exact VERWIJDER om te bevestigen.")
+            else:
+                clean = df_del[df_del[id_col].astype(str) != str(selected_delete)].reindex(columns=headers_del)
+                save_func(clean)
+                if delete_linked_actions and rel_type_for_actions:
+                    actions_clean = actions.drop(columns=["_bucket"], errors="ignore").copy().reindex(columns=ACTION_HEADERS)
+                    actions_clean = actions_clean[~((actions_clean["relatie_type"].astype(str) == rel_type_for_actions) & (actions_clean["relatie_id"].astype(str) == str(selected_delete)) & (actions_clean["status"].astype(str) == "Open"))]
+                    sheets.save_actions(actions_clean)
+                sheets.append_log(dict(id=new_id("L"), relatie_type=del_kind, relatie_id=selected_delete, relatie_naam=selected_row.get(label_col, ""), datum=sheet_date(today), soort="Notitie", notitie=f"Verwijderd via Snel beheer: {del_kind}."))
+                st.success(f"{del_kind} verwijderd.")
+                st.rerun()

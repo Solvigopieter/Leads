@@ -123,3 +123,8 @@ Agenda-fout opgelost: `cadans_stappen` wordt nu correct geïmporteerd, waardoor 
 
 ## v8.3 fix
 - Acties afronden en uitstellen bewaart datums nu als ISO-tekst, zodat pandas/Streamlit niet crasht op datumkolommen.
+
+
+## v9 - Snel beheer
+
+Nieuw tabblad **Snel beheer** toegevoegd voor eenvoudiger toevoegen, status wijzigen en verwijderen zonder grote tabellen.
