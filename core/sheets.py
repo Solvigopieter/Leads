@@ -89,7 +89,8 @@ def _to_df(records, headers, sheet_name):
     # Bestaande/extra kolommen negeren in de app, gewenste kolommen aanvullen.
     df = df.reindex(columns=headers)
     for c in DATE_COLS.get(sheet_name, []):
-        df[c] = pd.to_datetime(df[c], errors="coerce").dt.date
+        parsed = pd.to_datetime(df[c], errors="coerce")
+        df[c] = parsed.dt.strftime("%Y-%m-%d").fillna("").astype(str)
     for c in INT_COLS.get(sheet_name, []):
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
     for c in FLOAT_COLS.get(sheet_name, []):

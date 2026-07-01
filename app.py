@@ -125,6 +125,12 @@ def date_label(value):
     return d.strftime("%d/%m/%Y") if d else "Geen datum"
 
 
+def sheet_date(value):
+    """Bewaar datums als tekst voor Google Sheets/pandas, zodat afronden en uitstellen niet crasht."""
+    d = as_date(value)
+    return d.isoformat() if d else ""
+
+
 def status_pill(status):
     kleur = STATUS_KLEUR.get(str(status), "#E5E7EB")
     return f'<span class="status-pill" style="background:{kleur};">{esc(status)}</span>'
@@ -189,12 +195,12 @@ def sync_next_action(actions_df, rel_type, rel_id, rel_name, suggestion, today, 
     if not actie:
         if mask.any():
             df.loc[mask, "status"] = "Geannuleerd"
-            df.loc[mask, "afgerond_op"] = today
+            df.loc[mask, "afgerond_op"] = sheet_date(today)
             df.loc[mask, "notities"] = df.loc[mask, "notities"].astype(str).str.strip() + " | Geannuleerd door statuswijziging"
             return df, "cancelled"
         return df, "none"
 
-    datum_actie = as_date(suggestion.get("datum_actie")) or today + timedelta(days=7)
+    datum_actie = sheet_date(as_date(suggestion.get("datum_actie")) or today + timedelta(days=7))
     prio = suggestion.get("prioriteit", "Normaal")
     kanaal = suggestion.get("kanaal", "Telefoon")
     if mask.any():
@@ -220,7 +226,7 @@ def sync_next_action(actions_df, rel_type, rel_id, rel_name, suggestion, today, 
         status="Open",
         kanaal=kanaal,
         notities=reason,
-        aangemaakt_op=today,
+        aangemaakt_op=sheet_date(today),
         afgerond_op="",
         cadans="",
         cadans_stap="",
@@ -242,15 +248,15 @@ def update_customer_after_project(customers_df, actions_df, project_row, today):
     terugkerend = str(project_row.get("terugkerend") or customers_df.loc[i, "terugkerend"] or "Nee")
     nieuwe_status = "Terugkerende klant" if terugkerend == "Ja" else "Actieve klant"
     customers_df.loc[i, "status"] = nieuwe_status
-    customers_df.loc[i, "laatste_reiniging"] = today
+    customers_df.loc[i, "laatste_reiniging"] = sheet_date(today)
     if terugkerend == "Ja":
-        customers_df.loc[i, "volgende_contact"] = today + timedelta(days=330)
+        customers_df.loc[i, "volgende_contact"] = sheet_date(today + timedelta(days=330))
     suggestion = next_action_for_status("Klant", nieuwe_status, today)
     if terugkerend == "Ja":
-        suggestion["datum_actie"] = today + timedelta(days=330)
+        suggestion["datum_actie"] = sheet_date(today + timedelta(days=330))
         suggestion["actie"] = "Opnieuw contacteren voor jaarlijkse reiniging"
     customers_df.loc[i, "volgende_actie"] = suggestion["actie"]
-    customers_df.loc[i, "datum_actie"] = suggestion["datum_actie"] if suggestion["actie"] else ""
+    customers_df.loc[i, "datum_actie"] = sheet_date(suggestion["datum_actie"]) if suggestion["actie"] else ""
     actions_df, _ = sync_next_action(
         actions_df,
         "Klant",
@@ -280,7 +286,7 @@ def afrond_actie(actions_df, action_id, today):
         return None
     i = idx[0]
     df.loc[i, "status"] = "Gedaan"
-    df.loc[i, "afgerond_op"] = today
+    df.loc[i, "afgerond_op"] = sheet_date(today)
     row = df.loc[i].to_dict()
     volgende = cadans_volgende(row, today)
     sheets.save_actions(df)
@@ -292,7 +298,7 @@ def afrond_actie(actions_df, action_id, today):
         relatie_type=row.get("relatie_type", ""),
         relatie_id=row.get("relatie_id", ""),
         relatie_naam=row.get("relatie_naam", ""),
-        datum=today,
+        datum=sheet_date(today),
         soort=soort,
         notitie=f"Afgerond: {row.get('actie', '')}",
     ))
@@ -308,7 +314,7 @@ def snooze_actie(actions_df, action_id, dagen, today):
     i = idx[0]
     huidig = as_date(df.loc[i, "datum_actie"])
     basis = huidig if huidig is not None and huidig > today else today
-    df.loc[i, "datum_actie"] = basis + timedelta(days=dagen)
+    df.loc[i, "datum_actie"] = sheet_date(basis + timedelta(days=dagen))
     sheets.save_actions(df)
 
 
@@ -646,7 +652,7 @@ with tabs[1]:
                 row["prioriteit"] = prio
                 row["notities"] = notities or row["notities"]
             else:
-                row = dict(id=new_id("A"), relatie_type=rtype, relatie_id=rid, relatie_naam=rname, actie=actie, datum_actie=datum_actie, prioriteit=prio, status="Open", kanaal=kanaal, notities=notities, aangemaakt_op=today, afgerond_op="", cadans="", cadans_stap="")
+                row = dict(id=new_id("A"), relatie_type=rtype, relatie_id=rid, relatie_naam=rname, actie=actie, datum_actie=datum_actie, prioriteit=prio, status="Open", kanaal=kanaal, notities=notities, aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap="")
             sheets.append_action(row)
             st.success("Actie toegevoegd.")
             st.rerun()
@@ -676,7 +682,7 @@ with tabs[1]:
     if csave.button("💾 Acties opslaan", type="primary", use_container_width=True):
         edited_actions = edited_actions.reindex(columns=ACTION_HEADERS)
         edited_actions["id"] = edited_actions["id"].apply(lambda x: x if str(x).strip() else new_id("A"))
-        edited_actions["afgerond_op"] = edited_actions.apply(lambda r: today if r.get("status") == "Gedaan" and as_date(r.get("afgerond_op")) is None else r.get("afgerond_op"), axis=1)
+        edited_actions["afgerond_op"] = edited_actions.apply(lambda r: sheet_date(today) if r.get("status") == "Gedaan" and as_date(r.get("afgerond_op")) is None else sheet_date(r.get("afgerond_op")), axis=1)
         base = actions.drop(columns=["_bucket"], errors="ignore").copy().reindex(columns=ACTION_HEADERS)
         base_idx = base.set_index("id") if len(base) else pd.DataFrame(columns=ACTION_HEADERS).set_index("id")
         base_idx.update(edited_actions.set_index("id"))
@@ -817,8 +823,8 @@ with tabs[3]:
             )
             sheets.append_customer(row)
             if suggestion["actie"]:
-                sheets.append_action(dict(id=new_id("A"), relatie_type="Klant", relatie_id=cid, relatie_naam=klant, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt bij nieuwe klant", aangemaakt_op=today, afgerond_op="", cadans="", cadans_stap=""))
-            sheets.append_log(dict(id=new_id("L"), relatie_type="Klant", relatie_id=cid, relatie_naam=klant, datum=today, soort="Notitie", notitie="Nieuwe klant aangemaakt."))
+                sheets.append_action(dict(id=new_id("A"), relatie_type="Klant", relatie_id=cid, relatie_naam=klant, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt bij nieuwe klant", aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
+            sheets.append_log(dict(id=new_id("L"), relatie_type="Klant", relatie_id=cid, relatie_naam=klant, datum=sheet_date(today), soort="Notitie", notitie="Nieuwe klant aangemaakt."))
             st.success("Klant toegevoegd.")
             st.rerun()
 
@@ -861,7 +867,7 @@ with tabs[3]:
                     i = idxs[0]
                     suggestion = next_action_for_status("Klant", new_status, today)
                     if str(merged.loc[i, "terugkerend"]) == "Ja" and new_status == "Terugkerende klant":
-                        suggestion["datum_actie"] = as_date(merged.loc[i, "volgende_contact"]) or today + timedelta(days=330)
+                        suggestion["datum_actie"] = sheet_date(as_date(merged.loc[i, "volgende_contact"]) or today + timedelta(days=330))
                     merged.loc[i, "volgende_actie"] = suggestion["actie"]
                     merged.loc[i, "datum_actie"] = suggestion["datum_actie"] if suggestion["actie"] else ""
                     actions_work, _ = sync_next_action(actions_work, "Klant", cid, merged.loc[i, "klant_bedrijf"], suggestion, today, f"Automatisch aangepast door klantstatus: {old_status.get(cid) or 'nieuw'} → {new_status}")
@@ -913,8 +919,8 @@ with tabs[3]:
                 suggestion = next_action_for_status("Project", status, today) if auto_actie else {"actie": "", "datum_actie": "", "prioriteit": "Normaal", "kanaal": "Telefoon"}
                 sheets.append_project(dict(id=pid, projectnaam=projectnaam, klant_bedrijf=row.get("klant_bedrijf"), contactpersoon=row.get("contactpersoon"), email=row.get("email"), telefoon=row.get("telefoon"), adres=row.get("adres"), regio=row.get("regio"), aantal_panelen=panelen, partner_id=row.get("partner_id"), partner_bedrijf=row.get("partner_bedrijf"), bron_type=bron_type, status=status, eerste_contact="", laatste_contact="", volgende_actie=suggestion["actie"], datum_actie=suggestion["datum_actie"] if suggestion["actie"] else "", verwachte_waarde=waarde, notities=notities, klant_id=selected, terugkerend=terugkerend, frequentie=frequentie, hercontactdatum=""))
                 if suggestion["actie"]:
-                    sheets.append_action(dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=projectnaam, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt bij nieuw project", aangemaakt_op=today, afgerond_op="", cadans="", cadans_stap=""))
-                sheets.append_log(dict(id=new_id("L"), relatie_type="Klant", relatie_id=selected, relatie_naam=row.get("klant_bedrijf"), datum=today, soort="Notitie", notitie=f"Nieuw project aangemaakt: {projectnaam}."))
+                    sheets.append_action(dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=projectnaam, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt bij nieuw project", aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
+                sheets.append_log(dict(id=new_id("L"), relatie_type="Klant", relatie_id=selected, relatie_naam=row.get("klant_bedrijf"), datum=sheet_date(today), soort="Notitie", notitie=f"Nieuw project aangemaakt: {projectnaam}."))
                 st.success("Project aangemaakt.")
                 st.rerun()
     else:
@@ -960,7 +966,7 @@ with tabs[4]:
             suggestion = next_action_for_status("Project", status, today) if auto_actie else {"actie": "", "datum_actie": "", "prioriteit": "Normaal", "kanaal": "Telefoon"}
             sheets.append_project(dict(id=pid, projectnaam=projectnaam, klant_bedrijf=klant, contactpersoon=contact, email=email, telefoon=tel, adres=adres, regio=regio, aantal_panelen=panelen, partner_id=p_id, partner_bedrijf="" if p_label == "Geen partner/installateur" else p_label, bron_type=bron_type, status=status, eerste_contact="", laatste_contact="", volgende_actie=suggestion["actie"], datum_actie=suggestion["datum_actie"] if suggestion["actie"] else "", verwachte_waarde=waarde, notities=notities, klant_id=cust_id, terugkerend=terugkerend, frequentie=frequentie, hercontactdatum=""))
             if suggestion["actie"]:
-                sheets.append_action(dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=projectnaam, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt bij nieuw project", aangemaakt_op=today, afgerond_op="", cadans="", cadans_stap=""))
+                sheets.append_action(dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=projectnaam, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt bij nieuw project", aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
             st.success("Project toegevoegd.")
             st.rerun()
 
@@ -1008,7 +1014,7 @@ with tabs[4]:
                     rel_name = merged.loc[i, "projectnaam"] or merged.loc[i, "klant_bedrijf"] or "Naamloos project"
                     actions_work, _ = sync_next_action(actions_work, "Project", pid, rel_name, suggestion, today, f"Automatisch aangepast door projectstatus: {old_status.get(pid) or 'nieuw'} → {new_status}")
                     customers_work, actions_work, _ = update_customer_after_project(customers_work, actions_work, merged.loc[i].to_dict(), today)
-                    sheets.append_log(dict(id=new_id("L"), relatie_type="Project", relatie_id=pid, relatie_naam=rel_name, datum=today, soort="Notitie", notitie=f"Status gewijzigd: {old_status.get(pid) or 'nieuw'} → {new_status}. Volgende actie: {suggestion['actie'] or 'geen'}."))
+                    sheets.append_log(dict(id=new_id("L"), relatie_type="Project", relatie_id=pid, relatie_naam=rel_name, datum=sheet_date(today), soort="Notitie", notitie=f"Status gewijzigd: {old_status.get(pid) or 'nieuw'} → {new_status}. Volgende actie: {suggestion['actie'] or 'geen'}."))
                     changed += 1
         sheets.save_projects(merged)
         if auto_project_table:
@@ -1074,7 +1080,7 @@ with tabs[4]:
                     customers_work, actions_work, _ = update_customer_after_project(customers_work, actions_work, full.loc[idx].to_dict(), today)
                     sheets.save_actions(actions_work)
                     sheets.save_customers(customers_work)
-                    sheets.append_log(dict(id=new_id("L"), relatie_type="Project", relatie_id=selected, relatie_naam=projectnaam, datum=today, soort="Notitie", notitie=f"Status opgeslagen: {row.get('status', '')} → {status}. Volgende actie: {suggestion['actie'] or 'geen'}."))
+                    sheets.append_log(dict(id=new_id("L"), relatie_type="Project", relatie_id=selected, relatie_naam=projectnaam, datum=sheet_date(today), soort="Notitie", notitie=f"Status opgeslagen: {row.get('status', '')} → {status}. Volgende actie: {suggestion['actie'] or 'geen'}."))
                 sheets.save_projects(full)
                 st.success("Project opgeslagen en opvolging bijgewerkt." if auto_actie else "Project opgeslagen.")
                 st.rerun()
@@ -1113,7 +1119,7 @@ with tabs[5]:
             suggestion = next_action_for_status("Partner", status, today) if auto_actie else {"actie": "", "datum_actie": "", "prioriteit": "Normaal", "kanaal": "Telefoon"}
             sheets.append_partner(dict(id=pid, bedrijf=bedrijf, type=typ, contactpersoon=contact, functie=functie, email=email, telefoon=tel, regio=regio, website=website, status=status, bron=bron, eerste_contact="", laatste_contact="", volgende_actie=suggestion["actie"], datum_actie=suggestion["datum_actie"] if suggestion["actie"] else "", notities=notities))
             if suggestion["actie"]:
-                sheets.append_action(dict(id=new_id("A"), relatie_type="Partner", relatie_id=pid, relatie_naam=bedrijf, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt bij nieuwe partner", aangemaakt_op=today, afgerond_op="", cadans="", cadans_stap=""))
+                sheets.append_action(dict(id=new_id("A"), relatie_type="Partner", relatie_id=pid, relatie_naam=bedrijf, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities="Automatisch aangemaakt bij nieuwe partner", aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
             st.success("Partner toegevoegd.")
             st.rerun()
 
@@ -1186,13 +1192,13 @@ with tabs[5]:
                 cid = ""
                 if maak_klant:
                     cid = new_id("K")
-                    sheets.append_customer(dict(id=cid, klant_bedrijf=klant, type="Bedrijf", contactpersoon=contact, email=email, telefoon=tel, adres=adres, regio=regio, status="Prospect", bron_type=bron_type, partner_id=selected, partner_bedrijf=row.get("bedrijf"), terugkerend="Nee", frequentie="", laatste_reiniging="", volgende_contact="", laatste_contact="", volgende_actie="Klant contacteren", datum_actie=today + timedelta(days=1), notities=f"Doorverwezen door {row.get('bedrijf')}"))
+                    sheets.append_customer(dict(id=cid, klant_bedrijf=klant, type="Bedrijf", contactpersoon=contact, email=email, telefoon=tel, adres=adres, regio=regio, status="Prospect", bron_type=bron_type, partner_id=selected, partner_bedrijf=row.get("bedrijf"), terugkerend="Nee", frequentie="", laatste_reiniging="", volgende_contact="", laatste_contact="", volgende_actie="Klant contacteren", datum_actie=sheet_date(today + timedelta(days=1)), notities=f"Doorverwezen door {row.get('bedrijf')}"))
                 pid = new_id("P")
                 pname = projectnaam or f"{klant} — reiniging zonnepanelen"
                 suggestion = next_action_for_status("Project", "Nieuwe aanvraag", today)
                 sheets.append_project(dict(id=pid, projectnaam=pname, klant_bedrijf=klant, contactpersoon=contact, email=email, telefoon=tel, adres=adres, regio=regio, aantal_panelen=panelen, partner_id=selected, partner_bedrijf=row.get("bedrijf"), bron_type=bron_type, status="Nieuwe aanvraag", eerste_contact="", laatste_contact="", volgende_actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], verwachte_waarde=0, notities=f"Doorverwezen door {row.get('bedrijf')}", klant_id=cid, terugkerend="", frequentie="", hercontactdatum=""))
-                sheets.append_action(dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=pname, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities=f"Doorverwijzing via {row.get('bedrijf')}", aangemaakt_op=today, afgerond_op="", cadans="", cadans_stap=""))
-                sheets.append_log(dict(id=new_id("L"), relatie_type="Partner", relatie_id=selected, relatie_naam=row.get("bedrijf"), datum=today, soort="Doorverwijzing", notitie=f"Doorverwijzing aangemaakt: {pname}."))
+                sheets.append_action(dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=pname, actie=suggestion["actie"], datum_actie=suggestion["datum_actie"], prioriteit=suggestion["prioriteit"], status="Open", kanaal=suggestion["kanaal"], notities=f"Doorverwijzing via {row.get('bedrijf')}", aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
+                sheets.append_log(dict(id=new_id("L"), relatie_type="Partner", relatie_id=selected, relatie_naam=row.get("bedrijf"), datum=sheet_date(today), soort="Doorverwijzing", notitie=f"Doorverwijzing aangemaakt: {pname}."))
                 st.success("Doorverwijzing opgeslagen als klant/project.")
                 st.rerun()
     else:
@@ -1232,14 +1238,14 @@ with tabs[6]:
                 full = projects.copy().reindex(columns=PROJECT_HEADERS)
                 idx = full.index[full["id"] == project_id][0]
                 full.loc[idx, "status"] = status_na
-                full.loc[idx, "laatste_contact"] = today
+                full.loc[idx, "laatste_contact"] = sheet_date(today)
                 full.loc[idx, "volgende_actie"] = suggestion["actie"]
                 full.loc[idx, "datum_actie"] = suggestion["datum_actie"] if suggestion["actie"] else ""
                 actions_work = actions.drop(columns=["_bucket"], errors="ignore").copy().reindex(columns=ACTION_HEADERS)
                 actions_work, _ = sync_next_action(actions_work, "Project", project_id, prow.get("projectnaam", ""), suggestion, today, "Aangemaakt vanuit plaatsbezoekverslag")
                 sheets.save_projects(full)
                 sheets.save_actions(actions_work)
-                sheets.append_log(dict(id=new_id("L"), relatie_type="Project", relatie_id=project_id, relatie_naam=prow.get("projectnaam", ""), datum=today, soort="Bezoek", notitie=f"Plaatsbezoekverslag opgeslagen. Vervuiling: {vervuiling}. Toegang: {toegang}. Status: {status_na}."))
+                sheets.append_log(dict(id=new_id("L"), relatie_type="Project", relatie_id=project_id, relatie_naam=prow.get("projectnaam", ""), datum=sheet_date(today), soort="Bezoek", notitie=f"Plaatsbezoekverslag opgeslagen. Vervuiling: {vervuiling}. Toegang: {toegang}. Status: {status_na}."))
                 st.success("Plaatsbezoekverslag, status en vervolgactie opgeslagen.")
                 st.rerun()
     else:
@@ -1322,14 +1328,14 @@ with tabs[7]:
                     status = "Gecontacteerd" if r.get("status") in ["Gecontacteerd", "Opvolgen", "Interesse / gesprek"] else "Nieuw"
                     new_partners.append(dict(id=rid, bedrijf=r.get("bedrijf", ""), type=r.get("type", "Installateur"), contactpersoon=r.get("contactpersoon", ""), functie=r.get("functie", ""), email=r.get("email", ""), telefoon=r.get("telefoon", ""), regio=r.get("regio", ""), website="", status=status, bron=r.get("bron", ""), eerste_contact=r.get("eerste_contact", ""), laatste_contact=r.get("laatste_contact", ""), volgende_actie=r.get("volgende_actie", ""), datum_actie=r.get("datum_actie", ""), notities=r.get("notities", "")))
                     if r.get("volgende_actie"):
-                        new_actions.append(dict(id=new_id("A"), relatie_type="Partner", relatie_id=rid, relatie_naam=r.get("bedrijf", ""), actie=r.get("volgende_actie", ""), datum_actie=r.get("datum_actie", ""), prioriteit="Normaal", status="Open", kanaal="Telefoon", notities="Gemigreerd uit oude Leads-tab", aangemaakt_op=today, afgerond_op="", cadans="", cadans_stap=""))
+                        new_actions.append(dict(id=new_id("A"), relatie_type="Partner", relatie_id=rid, relatie_naam=r.get("bedrijf", ""), actie=r.get("volgende_actie", ""), datum_actie=r.get("datum_actie", ""), prioriteit="Normaal", status="Open", kanaal="Telefoon", notities="Gemigreerd uit oude Leads-tab", aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
                 else:
                     cid = new_id("K")
                     pid = new_id("P")
                     new_customers.append(dict(id=cid, klant_bedrijf=r.get("bedrijf", ""), type="Bedrijf", contactpersoon=r.get("contactpersoon", ""), email=r.get("email", ""), telefoon=r.get("telefoon", ""), adres="", regio=r.get("regio", ""), status="Prospect", bron_type=r.get("bron", "Andere") if r.get("bron") in BRON_TYPES else "Andere", partner_id="", partner_bedrijf="", terugkerend="Nee", frequentie="", laatste_reiniging="", volgende_contact="", laatste_contact=r.get("laatste_contact", ""), volgende_actie=r.get("volgende_actie", ""), datum_actie=r.get("datum_actie", ""), notities=r.get("notities", "")))
                     new_projects.append(dict(id=pid, projectnaam=r.get("bedrijf", ""), klant_bedrijf=r.get("bedrijf", ""), contactpersoon=r.get("contactpersoon", ""), email=r.get("email", ""), telefoon=r.get("telefoon", ""), adres="", regio=r.get("regio", ""), aantal_panelen=r.get("aantal_panelen", 0), partner_id="", partner_bedrijf="", bron_type=r.get("bron", "Los project") if r.get("bron") in BRON_TYPES else "Andere", status="Nieuwe aanvraag", eerste_contact=r.get("eerste_contact", ""), laatste_contact=r.get("laatste_contact", ""), volgende_actie=r.get("volgende_actie", ""), datum_actie=r.get("datum_actie", ""), verwachte_waarde=0, notities=r.get("notities", ""), klant_id=cid, terugkerend="Nee", frequentie="", hercontactdatum=""))
                     if r.get("volgende_actie"):
-                        new_actions.append(dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=r.get("bedrijf", ""), actie=r.get("volgende_actie", ""), datum_actie=r.get("datum_actie", ""), prioriteit="Normaal", status="Open", kanaal="Telefoon", notities="Gemigreerd uit oude Leads-tab", aangemaakt_op=today, afgerond_op="", cadans="", cadans_stap=""))
+                        new_actions.append(dict(id=new_id("A"), relatie_type="Project", relatie_id=pid, relatie_naam=r.get("bedrijf", ""), actie=r.get("volgende_actie", ""), datum_actie=r.get("datum_actie", ""), prioriteit="Normaal", status="Open", kanaal="Telefoon", notities="Gemigreerd uit oude Leads-tab", aangemaakt_op=sheet_date(today), afgerond_op="", cadans="", cadans_stap=""))
             if new_partners:
                 sheets.save_partners(pd.concat([partners, pd.DataFrame(new_partners).reindex(columns=PARTNER_HEADERS)], ignore_index=True))
             if new_customers:

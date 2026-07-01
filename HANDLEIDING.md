@@ -104,6 +104,10 @@ Het tabblad **Agenda** is teruggezet. Daar zie je acties op datum, kan je acties
 
 
 
-## v8.2 fix
+## v8.3 fix
 
 Agenda-fout opgelost: `cadans_stappen` wordt nu correct geïmporteerd, waardoor het tabblad Agenda opnieuw opent.
+
+
+## v8.3 fix
+- Acties afronden en uitstellen bewaart datums nu als ISO-tekst, zodat pandas/Streamlit niet crasht op datumkolommen.
